@@ -1,6 +1,6 @@
 {
     "name": "saturniumbrowser",
-    "version": "1.2.6",
+    "version": "1.2.7",
     "description": "Navegador personalizado SaturniumBrowser",
     "main": "main.js",
     "scripts": {
@@ -49,7 +49,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/Jeffin-PVP/SaturniumBrowser.git"
+        "url": "https://github.com/PixelCode-Squad/Saturnium-Browser.git"
     },
-    "homepage": "https://github.com/Jeffin-PVP/SaturniumBrowser#readme"
+    "homepage": "https://github.com/PixelCode-Squad/Saturnium-Browser#readme"
 }
