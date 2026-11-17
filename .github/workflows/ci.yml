@@ -1,0 +1,57 @@
+name: CI — Build Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: Validate and build Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check project metadata
+        run: npm run check:metadata
+
+      - name: Build Windows installer
+        run: npm run build
+
+      - name: Generate CycloneDX SBOM
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          npm sbom --sbom-format=cyclonedx --output-file=dist/sbom.cdx.json
+
+      - name: Upload unsigned build and SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: SaturniumBrowser-Windows-unsigned-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/sbom.cdx.json
+          retention-days: 14

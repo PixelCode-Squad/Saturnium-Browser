@@ -1,16 +1,17 @@
 {
     "name": "saturniumbrowser",
-    "version": "1.2.5",
+    "version": "1.2.6",
     "description": "Navegador personalizado SaturniumBrowser",
     "main": "main.js",
     "scripts": {
         "start": "electron .",
-        "build": "electron-builder --win",
-        "release": "electron-builder --win --publish always"
+        "build": "electron-builder --win --publish never",
+        "release": "npm run build",
+        "check:metadata": "node scripts/check-metadata.js",
+        "prepare:signed-release": "node scripts/prepare-signed-release.js"
     },
     "keywords": [],
-    "author": "",
-    "license": "ISC",
+    "author": "Jefferson Passarelli Santos",
     "devDependencies": {
         "electron": "^44.1.0",
         "electron-builder": "^26.15.3"
@@ -45,5 +46,10 @@
             "owner": "Jeffin-PVP",
             "repo": "SaturniumBrowser"
         }
-    }
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Jeffin-PVP/SaturniumBrowser.git"
+    },
+    "homepage": "https://github.com/Jeffin-PVP/SaturniumBrowser#readme"
 }

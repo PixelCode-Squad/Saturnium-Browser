@@ -73,6 +73,17 @@ class ExtensionAPI {
         return { getJSON: url => this.host.fetchJSON(url, this.allowedHosts) };
     }
 
+    // Permissão: network.block (bloqueio de requisições de terceiros por domínio;
+    // a decisão é tomada pelo host, a extensão só informa listas de domínios)
+    get blocker() {
+        this.require("network.block");
+        return {
+            set: config => this.host.setBlocker(this.id, config),
+            clear: () => this.host.setBlocker(this.id, null),
+            stats: () => this.host.blockerStats(this.id)
+        };
+    }
+
     // Permissão: contextmenu.add (item no menu de botão direito quando há texto selecionado)
     get contextMenu() {
         this.require("contextmenu.add");

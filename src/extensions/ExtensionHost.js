@@ -23,6 +23,15 @@ const PAGE_PRESETS = {
     grayscale: "html{filter:grayscale(1)!important}",
     contrast: "html{filter:contrast(1.25) saturate(1.1)!important}"
 };
+// CSS fixo do host para esconder espaços de anúncio vazios (extensões só ligam/desligam).
+// Seletores conservadores, para não esconder conteúdo legítimo.
+const AD_COSMETIC_CSS =
+    "ins.adsbygoogle,.adsbygoogle,[id^=\"google_ads_\"],[id^=\"div-gpt-ad\"],[id*=\"google_ads_iframe\"]," +
+    "[data-google-query-id],[data-ad-slot],iframe[src*=\"doubleclick.net\"],iframe[src*=\"googlesyndication.com\"]," +
+    "iframe[src*=\"amazon-adsystem.com\"],iframe[src*=\"adnxs.com\"],iframe[src*=\"taboola.com\"]," +
+    "iframe[src*=\"outbrain.com\"]{display:none!important}";
+const MAX_BLOCK_DOMAINS = 50000;
+const MAX_TRACKED_DOMAINS = 2000;
 const HOST_RE = /^[a-z0-9.-]{1,253}$/i;
 const MAX_FETCH_BYTES = 1024 * 1024;
 const FETCH_TIMEOUT_MS = 8000;
@@ -43,6 +52,17 @@ function webHost(webContents) {
 
 function hostMatches(list, host) {
     return list.some(h => host === h || host.endsWith("." + h));
+}
+
+// Procura o domínio e cada domínio-pai (a.b.c.com, b.c.com, c.com) no conjunto.
+function matchedDomain(set, host) {
+    let h = host;
+    for (;;) {
+        if (set.has(h)) return h;
+        const i = h.indexOf(".");
+        if (i < 0) return null;
+        h = h.slice(i + 1);
+    }
 }
 
 function isColor(v) {
@@ -112,6 +132,84 @@ class ExtensionHost {
         }
         entry.zoom = Object.keys(clean).length ? clean : null;
         this.refreshWeb();
+    }
+
+    // Permissão network.block: a extensão entrega listas de domínios; quem decide e
+    // cancela requisições é o host (shouldBlock), nunca código da extensão.
+    setBlocker(id, config) {
+        const entry = this.entry(id);
+        if (!config || typeof config !== "object") {
+            entry.blocker = null;
+            this.refreshWeb();
+            return;
+        }
+        const domains = new Set();
+        if (Array.isArray(config.domains)) {
+            for (const d of config.domains.slice(0, MAX_BLOCK_DOMAINS)) {
+                const h = cleanHost(d);
+                if (h && h.includes(".")) domains.add(h);
+            }
+        }
+        const allow = Array.isArray(config.allowHosts)
+            ? config.allowHosts.map(cleanHost).filter(Boolean).slice(0, 500) : [];
+        const prev = entry.blocker;
+        entry.blocker = {
+            domains,
+            allow,
+            cosmetic: config.cosmetic !== false,
+            blocked: prev ? prev.blocked : 0,
+            byDomain: prev ? prev.byDomain : new Map()
+        };
+        this.refreshWeb();
+    }
+
+    blockerStats(id) {
+        const b = this.contributions.has(id) ? this.contributions.get(id).blocker : null;
+        if (!b) return { blocked: 0, top: [] };
+        const top = [...b.byDomain.entries()].sort((x, y) => y[1] - x[1]).slice(0, 10)
+            .map(([domain, count]) => ({ domain, count }));
+        return { blocked: b.blocked, top };
+    }
+
+    // Chamado pelo handler onBeforeRequest do main.js. Só bloqueia requisições de terceiros
+    // (domínio diferente do site aberto), nunca a navegação principal, e respeita a lista
+    // de sites liberados pelo usuário.
+    shouldBlock(details) {
+        try {
+            if (!details || details.resourceType === "mainFrame") return false;
+
+            const blockers = [];
+            for (const c of this.contributions.values()) {
+                if (c.blocker && c.blocker.domains.size) blockers.push(c.blocker);
+            }
+            if (!blockers.length) return false;
+
+            const reqUrl = new URL(details.url);
+            if (!/^(https?|wss?):$/.test(reqUrl.protocol)) return false;
+            const reqHost = reqUrl.hostname.toLowerCase().replace(/\.$/, "");
+
+            const wc = details.webContents;
+            if (!wc || wc.isDestroyed()) return false;
+            const pageHost = webHost(wc);
+            if (!pageHost) return false; // páginas internas (saturnium://) nunca são filtradas
+
+            // Mesmo site (ou subdomínio dele): é conteúdo próprio, não anúncio de terceiro.
+            if (reqHost === pageHost || reqHost.endsWith("." + pageHost) || pageHost.endsWith("." + reqHost)) {
+                return false;
+            }
+
+            for (const b of blockers) {
+                if (hostMatches(b.allow, pageHost)) continue;
+                const hit = matchedDomain(b.domains, reqHost);
+                if (!hit) continue;
+                b.blocked++;
+                if (b.byDomain.has(hit) || b.byDomain.size < MAX_TRACKED_DOMAINS) {
+                    b.byDomain.set(hit, (b.byDomain.get(hit) || 0) + 1);
+                }
+                return true;
+            }
+        } catch { /* na dúvida, não bloqueia */ }
+        return false;
     }
 
     setPip(id, config) {
@@ -229,7 +327,7 @@ class ExtensionHost {
     entry(id) {
         if (!this.contributions.has(id)) {
             this.contributions.set(id, {
-                vars: {}, wallpaper: null, pageStyle: null, zoom: null, pip: null, contextItems: []
+                vars: {}, wallpaper: null, pageStyle: null, zoom: null, pip: null, blocker: null, contextItems: []
             });
         }
         return this.contributions.get(id);
@@ -288,6 +386,8 @@ class ExtensionHost {
         for (const c of this.contributions.values()) {
             const s = c.pageStyle;
             if (s && !hostMatches(s.exclude, host)) parts.push(PAGE_PRESETS[s.preset]);
+            const b = c.blocker;
+            if (b && b.cosmetic && b.domains.size && !hostMatches(b.allow, host)) parts.push(AD_COSMETIC_CSS);
         }
         return parts.join("\n");
     }

@@ -10,7 +10,7 @@
 ![Electron](https://img.shields.io/badge/Electron-44.1.0-47848F?style=for-the-badge&logo=electron&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)
-![License](https://img.shields.io/badge/license-ISC-blue?style=for-the-badge)
+![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)
 
 </div>
 
@@ -136,6 +136,7 @@ As extensões oficiais identificadas no código são:
 
 | Extensão | Descrição |
 |---|---|
+| 🛡️ AdBlock | Bloqueio de anúncios e rastreadores de terceiros, com sites liberados e lista própria |
 | 🌙 Dark Pages | Filtros visuais e modo escuro para páginas |
 | 📖 Dictionary | Consulta de palavras e definições |
 | 📺 Miniplayer | Picture-in-Picture para vídeos |
@@ -144,6 +145,8 @@ As extensões oficiais identificadas no código são:
 | 🔍 Zoom | Configurações de zoom por domínio |
 
 As extensões utilizam manifests e uma API interna de permissões.
+
+**AdBlock:** a extensão informa listas de domínios (`extensions/official/saturnium-adblock/filters/`) e o navegador decide o bloqueio no mesmo ponto onde já cancela domínios maliciosos. Apenas requisições de terceiros são bloqueadas; a navegação principal e as páginas internas nunca são filtradas. Funciona por domínio, então não remove anúncios veiculados pelo próprio domínio do site (como os anúncios dentro de vídeos do YouTube). Para editar as listas, adicione um domínio por linha nos arquivos `ads.txt` e `trackers.txt`.
 
 **Observação:** a existência do código de uma extensão não significa que todos os sites ou situações sejam compatíveis com ela.
 
@@ -220,13 +223,13 @@ O diretório de saída configurado é:
 dist/
 ```
 
-Para publicar uma versão:
+Para gerar localmente um instalador sem publicá-lo:
 
 ```bash
 npm run release
 ```
 
-Esse comando depende da configuração e das permissões necessárias para publicar no GitHub.
+Esse comando **não publica** uma release no GitHub. A preparação de releases assinados, após a aprovação e configuração da SignPath Foundation, está documentada em [RELEASE_GUIDE.md](RELEASE_GUIDE.md).
 
 ## 📁 Estrutura do projeto
 
@@ -292,6 +295,19 @@ O funcionamento depende da publicação correta dos arquivos de atualização e 
 - Os provedores locais exigem que seus respectivos serviços estejam instalados e funcionando.
 - O funcionamento das extensões pode variar conforme o site visitado.
 - Não há garantia de compatibilidade com todos os sites.
+
+## 🔐 Privacidade e assinatura de código
+
+- [Política de Privacidade](PRIVACY.md)
+- [Code Signing Policy](CODE_SIGNING_POLICY.md)
+- [Inventário de licenças de dependências](THIRD_PARTY_NOTICES.md)
+- [Créditos e origem dos recursos visuais](ASSET_CREDITS.md)
+- [Política de segurança e reporte de vulnerabilidades](SECURITY.md)
+- [Guia de preparação de releases assinados](RELEASE_GUIDE.md)
+
+**Situação da assinatura:** a integração com a SignPath Foundation está em preparação e ainda não está ativa. Os instaladores só devem ser anunciados como assinados depois que o projeto for aceito, a assinatura for concluída e a assinatura Authenticode for validada.
+
+---
 
 ## 📌 Estado do projeto
 

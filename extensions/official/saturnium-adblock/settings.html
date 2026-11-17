@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>AdBlock - SaturniumBrowser</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:var(--sb-content-bg,#070914);color:#eef2ff;min-height:100vh}
+.wrap{max-width:980px;margin:auto;padding:40px}
+h1{margin:0 0 6px;font-size:32px}
+.sub{color:#8791b5;margin:0 0 28px}
+h2{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#79d8ff;margin:34px 0 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.stat{border:1px solid #252d50;border-radius:16px;padding:18px;background:#0c1020}
+.stat b{display:block;font-size:30px}
+.stat span{color:#8791b5;font-size:13px}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:16px;background:#0c1020;border:1px solid #252d50;border-radius:12px;padding:12px 16px;margin-bottom:8px}
+.opt small{display:block;color:#8791b5;margin-top:2px}
+.switch{appearance:none;width:42px;height:23px;border-radius:20px;background:#2a3150;position:relative;cursor:pointer;flex:none}
+.switch:checked{background:var(--sb-accent,#167ab1)}
+.switch:after{content:"";position:absolute;width:17px;height:17px;border-radius:50%;background:white;left:3px;top:3px;transition:.2s}
+.switch:checked:after{left:22px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+input[type=text]{background:#0c1020;border:1px solid #2d3563;color:#eef2ff;border-radius:10px;padding:10px 12px;font:inherit}
+input:focus{outline:none;border-color:var(--sb-accent,#7c5cff)}
+button.act{border:1px solid #2d3563;background:#141a33;color:#eef2ff;border-radius:10px;padding:10px 16px;font:inherit;cursor:pointer}
+button.act:hover{background:#1c2446}
+button.danger{border-color:#5c2a38}
+.msg{color:#ff9aa8;font-size:13px;margin-top:10px;min-height:18px}
+.muted{color:#8791b5;font-size:13px}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0c1020;border:1px solid #252d50;border-radius:12px;padding:10px 14px}
+.hint{border:1px solid #245b78;background:#0c1a2a;border-radius:12px;padding:10px 14px;color:#8fe3ff;font-size:13px;margin-top:14px;display:none}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <h1>🛡️ Saturnium AdBlock</h1>
+  <p class="sub">Bloqueia anúncios e rastreadores de terceiros enquanto você navega. Tudo acontece no seu computador.</p>
+
+  <div class="stats">
+    <div class="stat"><b id="s-session">0</b><span>bloqueados nesta sessão</span></div>
+    <div class="stat"><b id="s-total">0</b><span>bloqueados no total</span></div>
+    <div class="stat"><b id="s-rules">0</b><span>domínios nas listas ativas</span></div>
+  </div>
+
+  <h2>Proteção</h2>
+  <div class="opt"><div>Ativar AdBlock<small>Desliga tudo de uma vez, sem perder suas listas.</small></div><input class="switch" type="checkbox" data-opt="enabled"></div>
+  <div class="opt"><div>Bloquear anúncios<small id="c-ads">Redes de anúncios e banners.</small></div><input class="switch" type="checkbox" data-opt="ads"></div>
+  <div class="opt"><div>Bloquear rastreadores<small id="c-trackers">Análise e rastreamento de terceiros.</small></div><input class="switch" type="checkbox" data-opt="trackers"></div>
+  <div class="opt"><div>Esconder espaços de anúncio vazios<small>Remove os quadros em branco que sobram na página.</small></div><input class="switch" type="checkbox" data-opt="cosmetic"></div>
+
+  <h2>Site atual</h2>
+  <div class="row"><button id="toggle-current" class="act" style="display:none"></button><span id="no-current" class="muted">Abra um site em uma aba e volte aqui para liberá-lo.</span></div>
+  <div id="reload" class="hint">Recarregue a página do site para a mudança valer.</div>
+
+  <h2>Sites liberados</h2>
+  <p class="muted">Se um site quebrar com o bloqueio, libere-o aqui. Subdomínios também são liberados.</p>
+  <div class="row" style="margin:12px 0">
+    <input id="allow-host" type="text" placeholder="exemplo.com" size="28">
+    <button id="allow-add" class="act">Liberar site</button>
+  </div>
+  <div id="allowed" class="list"></div>
+
+  <h2>Meus domínios bloqueados</h2>
+  <p class="muted">Adicione domínios que você queira bloquear além das listas padrão.</p>
+  <div class="row" style="margin:12px 0">
+    <input id="custom-host" type="text" placeholder="anuncios.exemplo.com" size="28">
+    <button id="custom-add" class="act">Bloquear domínio</button>
+  </div>
+  <div id="custom" class="list"></div>
+
+  <h2>Mais bloqueados</h2>
+  <div id="top" class="list"></div>
+  <div id="msg" class="msg"></div>
+
+  <h2>Restaurar</h2>
+  <button id="reset" class="act danger">Restaurar padrões e limpar listas</button>
+</main>
+<script>
+const ID="saturnium.adblock";
+const call=(m,a)=>window.saturniumExtensions.call(ID,m,a);
+let state=null;
+const $=id=>document.getElementById(id);
+const nf=new Intl.NumberFormat("pt-BR");
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function say(t){$("msg").textContent=t||""}
+function errText(e){return (e&&e.message||"Erro").replace(/^Error invoking remote method '[^']*': (Error: )?/,"")}
+
+function render(){
+  $("s-session").textContent=nf.format(state.blockedSession);
+  $("s-total").textContent=nf.format(state.blockedTotal);
+  const rules=state.enabled?(state.ads?state.counts.ads:0)+(state.trackers?state.counts.trackers:0)+state.custom.length:0;
+  $("s-rules").textContent=nf.format(rules);
+  document.querySelectorAll("[data-opt]").forEach(i=>{i.checked=!!state[i.dataset.opt]});
+  $("c-ads").textContent=`Redes de anúncios e banners (${state.counts.ads} domínios).`;
+  $("c-trackers").textContent=`Análise e rastreamento de terceiros (${state.counts.trackers} domínios).`;
+
+  const h=state.currentHost, b=$("toggle-current");
+  if(h){
+    const allowed=state.allow.some(a=>h===a||h.endsWith("."+a));
+    b.style.display="";$("no-current").style.display="none";
+    b.textContent=allowed?`Voltar a bloquear em ${h}`:`Liberar anúncios em ${h}`;
+    b.dataset.h=h;b.dataset.m=allowed?"blockSite":"allowSite";
+  }else{b.style.display="none";$("no-current").style.display=""}
+
+  $("allowed").innerHTML=state.allow.length
+    ?state.allow.map(x=>`<div class="item"><span>${esc(x)}</span><button class="act" data-unallow="${esc(x)}">Bloquear de novo</button></div>`).join("")
+    :'<div class="muted">Nenhum site liberado.</div>';
+  $("custom").innerHTML=state.custom.length
+    ?state.custom.map(x=>`<div class="item"><span>${esc(x)}</span><button class="act" data-rm="${esc(x)}">Remover</button></div>`).join("")
+    :'<div class="muted">Nenhum domínio personalizado.</div>';
+  $("top").innerHTML=state.top.length
+    ?state.top.map(t=>`<div class="item"><span>${esc(t.domain)}</span><span class="muted">${nf.format(t.count)}</span></div>`).join("")
+    :'<div class="muted">Nada bloqueado ainda nesta sessão.</div>';
+}
+async function run(m,a,needsReload){
+  try{say("");state=await call(m,a);render();$("reload").style.display=needsReload?"block":"none"}
+  catch(e){say(errText(e))}
+}
+document.addEventListener("change",e=>{const i=e.target.closest("[data-opt]");if(i)run("setOption",{key:i.dataset.opt,value:i.checked})});
+$("toggle-current").addEventListener("click",e=>run(e.currentTarget.dataset.m,e.currentTarget.dataset.h,true));
+$("allowed").addEventListener("click",e=>{const b=e.target.closest("[data-unallow]");if(b)run("blockSite",b.dataset.unallow,true)});
+$("custom").addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(b)run("removeCustom",b.dataset.rm)});
+$("allow-add").addEventListener("click",()=>{const i=$("allow-host");run("allowSite",i.value,true);i.value=""});
+$("custom-add").addEventListener("click",()=>{const i=$("custom-host");run("addCustom",i.value);i.value=""});
+$("reset").addEventListener("click",()=>run("reset"));
+run("getState");
+setInterval(()=>{if(!document.hidden)run("getState",undefined,$("reload").style.display==="block")},4000);
+</script>
+</body>
+</html>

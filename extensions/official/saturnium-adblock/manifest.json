@@ -1,0 +1,11 @@
+{
+  "name": "Saturnium AdBlock",
+  "id": "saturnium.adblock",
+  "version": "1.0.0",
+  "description": "Bloqueia anúncios e rastreadores de terceiros, com lista própria e sites liberados.",
+  "author": "Saturnium",
+  "icon": "🛡️",
+  "main": "extension.js",
+  "settings": "settings.html",
+  "permissions": ["network.block", "tabs.read", "storage"]
+}

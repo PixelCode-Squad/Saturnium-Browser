@@ -1,0 +1,107 @@
+name: SignPath — Prepare signed Windows release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Versão do package.json, com prefixo v (ex.: v1.2.6)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  sign-release:
+    name: Build, submit for approval and prepare signed release
+    if: github.ref == 'refs/heads/main' && vars.SIGNPATH_ENABLED == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout main source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate release version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $expected = "v$($package.version)"
+          if ($env:RELEASE_VERSION -ne $expected) {
+            throw "A versão solicitada ($env:RELEASE_VERSION) não corresponde ao package.json ($expected)."
+          }
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check project metadata
+        run: npm run check:metadata
+
+      - name: Build unsigned Windows installer
+        run: npm run build
+
+      - name: Generate CycloneDX SBOM
+        shell: pwsh
+        run: npm sbom --sbom-format=cyclonedx --output-file=dist/sbom.cdx.json
+
+      - name: Upload unsigned installer for SignPath
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: SaturniumBrowser-unsigned-${{ inputs.release_version }}
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Submit installer to SignPath
+        id: signpath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          wait-for-completion: true
+          output-artifact-directory: signed-output
+
+      - name: Verify Authenticode signature
+        id: verify-signature
+        shell: pwsh
+        env:
+          EXPECTED_SUBJECT: ${{ vars.SIGNPATH_CERTIFICATE_SUBJECT_CONTAINS }}
+        run: |
+          $signed = Get-ChildItem -Path signed-output -Filter *.exe -File -Recurse | Select-Object -First 1
+          if (-not $signed) { throw "O SignPath não retornou um instalador .exe assinado." }
+          if ([string]::IsNullOrWhiteSpace($env:EXPECTED_SUBJECT)) { throw "Configure a variável SIGNPATH_CERTIFICATE_SUBJECT_CONTAINS com o identificador esperado do certificado." }
+          $signature = Get-AuthenticodeSignature -FilePath $signed.FullName
+          if ($signature.Status -ne 'Valid') { throw "Assinatura Authenticode inválida: $($signature.Status)" }
+          if (-not $signature.SignerCertificate.Subject.Contains($env:EXPECTED_SUBJECT, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "O certificado encontrado não corresponde ao identificador esperado. Subject: $($signature.SignerCertificate.Subject)"
+          }
+          "Assinatura Authenticode válida: $($signature.SignerCertificate.Subject)" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "SIGNED_EXE=$($signed.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Prepare signed installer and update metadata
+        shell: pwsh
+        run: |
+          node scripts/prepare-signed-release.js "$env:SIGNED_EXE" "release-ready" "dist/sbom.cdx.json"
+
+      - name: Upload signed release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: SaturniumBrowser-${{ inputs.release_version }}-signed-release-ready
+          path: release-ready/*
+          if-no-files-found: error
+          retention-days: 30

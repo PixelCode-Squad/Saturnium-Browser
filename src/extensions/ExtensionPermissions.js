@@ -13,6 +13,7 @@ class ExtensionPermissions {
         "pages.autofill",
         "clipboard.write",
         "network.fetch",
+        "network.block",
         "contextmenu.add",
         "ui.openpage"
     ]);

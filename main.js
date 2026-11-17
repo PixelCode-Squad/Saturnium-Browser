@@ -1169,7 +1169,12 @@ app.whenReady().then(async () => {
                 );
 
 
-            callback({ cancel: isMalicious });
+            // Extensões com permissão network.block (ex.: Saturnium AdBlock) só
+            // fornecem listas; o host decide se a requisição de terceiro é cancelada.
+            const blockedByExtension = !isMalicious &&
+                browserManager.extensions.host.shouldBlock(details);
+
+            callback({ cancel: isMalicious || blockedByExtension });
 
         }
     );
