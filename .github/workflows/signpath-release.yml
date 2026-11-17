@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload unsigned installer for SignPath
         id: upload-unsigned
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SaturniumBrowser-unsigned-${{ inputs.release_version }}
           path: dist/*.exe
@@ -99,7 +99,7 @@ jobs:
           node scripts/prepare-signed-release.js "$env:SIGNED_EXE" "release-ready" "dist/sbom.cdx.json"
 
       - name: Upload signed release bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SaturniumBrowser-${{ inputs.release_version }}-signed-release-ready
           path: release-ready/*
