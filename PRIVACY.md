@@ -74,6 +74,8 @@ A extensão de dicionário consulta `dictionaryapi.dev` para palavras em inglês
 
 As extensões oficiais possuem permissões declaradas em seus manifests. A extensão Dictionary tem acesso de rede limitado aos hosts declarados no manifesto. A extensão Passwords pode escrever dados na área de transferência e preencher campos de login quando o usuário aciona essa função e o domínio corresponde ao cadastro. A área de transferência é um recurso do sistema operacional e pode ser acessível a outros aplicativos em execução.
 
+O sistema de Desempenho funciona inteiramente no computador: mede o uso de memória e CPU dos processos do próprio navegador, não envia nenhum dado a serviços externos e guarda apenas suas preferências (limites e opções) em `performance.json`. Títulos e endereços das abas aparecem na página de desempenho somente para você e não são gravados. Uma aba suspensa mantém título, ícone e histórico de navegação em memória até ser reativada ou fechada.
+
 A extensão AdBlock funciona inteiramente no computador: ela não faz requisições de rede próprias e não envia dados a nenhum serviço. As listas de domínios ficam dentro do aplicativo. Os sites liberados, os domínios personalizados e o contador total de bloqueios ficam no armazenamento local da extensão. Os domínios mais bloqueados da sessão são mantidos apenas em memória.
 
 Extensões instaladas de outras fontes podem ter comportamento diferente. Instale apenas extensões em que confia e revise suas permissões e seu código.

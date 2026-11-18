@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desempenho - SaturniumBrowser</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:var(--sb-content-bg,#070914);color:#eef2ff;min-height:100vh}
+.wrap{max-width:1000px;margin:auto;padding:40px}
+.brand{color:#79d8ff;letter-spacing:.2em;font-size:12px;font-weight:700}
+h1{margin:6px 0;font-size:34px}
+.sub{color:#8791b5;margin:0 0 24px}
+h2{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#79d8ff;margin:36px 0 14px}
+.muted{color:#8791b5;font-size:13px;line-height:1.5}
+.banner{display:none;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border:1px solid #6b5a1f;background:#2a2410;color:#ffe08a;border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:14px}
+.note{display:none;border:1px solid #245b78;background:#0c1a2a;color:#8fe3ff;border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:14px}
+.gauges{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.gauge{border:1px solid #252d50;border-radius:16px;padding:18px;background:#0c1020}
+.gauge .label{color:#8791b5;font-size:13px}
+.gauge .value{font-size:28px;font-weight:700;margin:4px 0 10px}
+.gauge .value small{font-size:14px;color:#8791b5;font-weight:400}
+.bar{height:8px;border-radius:8px;background:#1a2040;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--sb-accent,#167ab1);border-radius:8px;transition:width .4s}
+.bar.warn>i{background:#e0a030}.bar.over>i{background:#e0556a}
+.profiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.card{border:2px solid #252d50;border-radius:16px;padding:16px;background:#0c1020;cursor:pointer;transition:.15s;color:inherit;font:inherit;text-align:left}
+.card:hover{border-color:#3b4780}
+.card.active{border-color:var(--sb-accent,#7c5cff);box-shadow:0 0 0 3px #7c5cff22}
+.card b{display:block;font-size:15px;margin-bottom:4px}
+.card span{color:#8791b5;font-size:13px;line-height:1.4}
+.opt{background:#0c1020;border:1px solid #252d50;border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.opt .head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.opt small{display:block;color:#8791b5;margin-top:2px;line-height:1.4}
+.opt .ctl{display:flex;align-items:center;gap:14px;margin-top:12px}
+.opt .ctl .val{min-width:110px;text-align:right;font-variant-numeric:tabular-nums;font-size:14px}
+.opt.off .ctl{opacity:.4;pointer-events:none}
+input[type=range]{flex:1;accent-color:var(--sb-accent,#7c5cff)}
+select{background:#0c1020;border:1px solid #2d3563;color:#eef2ff;border-radius:10px;padding:8px 12px;font:inherit}
+.switch{appearance:none;width:42px;height:23px;border-radius:20px;background:#2a3150;position:relative;cursor:pointer;flex:none}
+.switch:checked{background:var(--sb-accent,#167ab1)}
+.switch:after{content:"";position:absolute;width:17px;height:17px;border-radius:50%;background:white;left:3px;top:3px;transition:.2s}
+.switch:checked:after{left:22px}
+.tag{font-size:11px;border-radius:999px;padding:3px 9px;border:1px solid #245b78;color:#8fe3ff;margin-left:8px;white-space:nowrap}
+.tag.restart{border-color:#6b5a1f;color:#ffe08a}
+button.act{border:1px solid #2d3563;background:#141a33;color:#eef2ff;border-radius:10px;padding:8px 14px;font:inherit;font-size:13px;cursor:pointer}
+button.act:hover{background:#1c2446}
+button.act:disabled{opacity:.4;cursor:default}
+.tablewrap{overflow-x:auto;border:1px solid #252d50;border-radius:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid #1a2040;white-space:nowrap}
+th{color:#8791b5;font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase;background:#0c1020}
+tr:last-child td{border-bottom:none}
+td.title{max-width:320px;overflow:hidden;text-overflow:ellipsis}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{font-size:12px;border-radius:999px;padding:3px 10px;background:#141a33;border:1px solid #2d3563}
+.pill.active{border-color:#2f7d57;color:#86e3b0}
+.pill.suspended{color:#8791b5}
+.log{display:flex;flex-direction:column;gap:6px}
+.log div{background:#0c1020;border:1px solid #252d50;border-radius:10px;padding:8px 12px;font-size:13px}
+.log time{color:#8791b5;margin-right:8px}
+.msg{color:#ff9aa8;font-size:13px;margin-top:10px;min-height:18px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <div class="brand">SATURNIUMBROWSER</div>
+  <h1>⚡ Desempenho</h1>
+  <p class="sub">Deixe o navegador mais leve e escolha quanto de memória e processador ele pode usar.</p>
+
+  <div id="restart" class="banner"><span>Algumas mudanças só valem depois de reiniciar o navegador. Suas abas abertas não serão restauradas automaticamente.</span><button id="relaunch" class="act">Reiniciar agora</button></div>
+  <div id="note" class="note"></div>
+
+  <div class="gauges">
+    <div class="gauge"><div class="label">Memória (RAM) do navegador</div><div class="value" id="g-ram">—</div><div class="bar" id="b-ram"><i></i></div><div class="muted" id="g-ram-sub" style="margin-top:8px"></div></div>
+    <div class="gauge"><div class="label">Processador (CPU)</div><div class="value" id="g-cpu">—</div><div class="bar" id="b-cpu"><i></i></div><div class="muted" id="g-cpu-sub" style="margin-top:8px"></div></div>
+    <div class="gauge"><div class="label">Abas</div><div class="value" id="g-tabs">—</div><div class="muted" id="g-tabs-sub" style="margin-top:8px"></div></div>
+    <div class="gauge"><div class="label">Memória economizada</div><div class="value" id="g-saved">—</div><div class="muted" id="g-saved-sub" style="margin-top:8px">Estimativa desde que o navegador abriu.</div></div>
+  </div>
+
+  <h2>Perfil</h2>
+  <div id="profiles" class="profiles">
+    <button class="card" data-profile="performance"><b>🚀 Desempenho</b><span>Sem limites e sem suspender abas. Máxima velocidade, mais memória.</span></button>
+    <button class="card" data-profile="balanced"><b>⚖️ Equilibrado</b><span>Suspende abas paradas há 30 min e rebaixa a prioridade das abas em segundo plano.</span></button>
+    <button class="card" data-profile="economy"><b>🍃 Econômico</b><span id="eco-desc">Limita RAM e CPU e suspende abas paradas há 10 min.</span></button>
+  </div>
+  <p class="muted" id="custom-note" style="display:none;margin-top:10px">Você ajustou os valores manualmente (perfil personalizado).</p>
+
+  <h2>Limites</h2>
+
+  <div class="opt"><div class="head"><div>Ativar otimização<small>Desligue para o navegador parar de suspender abas e mexer em prioridades.</small></div><input class="switch" type="checkbox" id="enabled"></div></div>
+
+  <div class="opt" id="opt-ram">
+    <div class="head"><div>Limite de memória (RAM)<small>Ao passar do limite, as abas em segundo plano usadas há mais tempo são suspensas até voltar abaixo dele.</small></div><input class="switch" type="checkbox" id="ram-on"></div>
+    <div class="ctl"><input type="range" id="ram" step="128"><span class="val" id="ram-val"></span></div>
+  </div>
+
+  <div class="opt" id="opt-cpu">
+    <div class="head"><div>Limite de processador (CPU)<small>Em % de toda a CPU do computador. Ao passar do limite, abas em segundo plano ficam com prioridade mínima; se continuar, a que mais consome é suspensa.</small></div><input class="switch" type="checkbox" id="cpu-on"></div>
+    <div class="ctl"><input type="range" id="cpu" min="10" max="100" step="5"><span class="val" id="cpu-val"></span></div>
+  </div>
+
+  <div class="opt"><div class="head"><div>Suspender abas inativas<small>Libera a memória de abas em segundo plano que você não usa. Elas continuam na barra e recarregam ao clicar.</small></div>
+    <select id="idle"><option value="0">Nunca</option><option value="5">5 minutos</option><option value="10">10 minutos</option><option value="15">15 minutos</option><option value="30">30 minutos</option><option value="60">1 hora</option><option value="120">2 horas</option></select></div></div>
+
+  <div class="opt"><div class="head"><div>Prioridade menor para abas em segundo plano<small>Deixa a aba que você está usando mais fluida quando o computador está ocupado.</small></div><input class="switch" type="checkbox" id="lowprio"></div></div>
+
+  <div class="opt"><div class="head"><div>Nunca suspender abas fixadas<small>Abas tocando áudio, carregando, a aba ativa e páginas internas também nunca são suspensas.</small></div><input class="switch" type="checkbox" id="pinned"></div></div>
+
+  <p class="muted">Importante: o sistema operacional não permite fixar um programa exatamente em X MB ou X% de CPU. Os limites são metas: o navegador age sobre as abas em segundo plano quando elas são ultrapassadas. A aba que você está usando nunca é suspensa. Formulários não enviados em uma aba suspensa podem ser perdidos.</p>
+
+  <h2>Avançado <span class="tag restart">exige reiniciar</span></h2>
+
+  <div class="opt"><div class="head"><div>Aceleração por hardware (GPU)<small>Desligar reduz o uso de memória de vídeo e pode ajudar em computadores com placa de vídeo fraca ou com problemas gráficos, mas vídeos e animações podem ficar mais pesados para a CPU.</small></div><input class="switch" type="checkbox" id="gpu"></div></div>
+
+  <div class="opt" id="opt-heap">
+    <div class="head"><div>Teto de memória do JavaScript por aba<small>Limita quanto cada aba pode alocar. Páginas que passarem do teto travam com erro de memória. Abaixo de 1024 MB muitos sites deixam de funcionar.</small></div><input class="switch" type="checkbox" id="heap-on"></div>
+    <div class="ctl"><input type="range" id="heap" min="256" max="8192" step="128"><span class="val" id="heap-val"></span></div>
+  </div>
+
+  <h2>Abas</h2>
+  <div class="row" style="margin-bottom:12px"><button id="suspend-all" class="act">Suspender todas em segundo plano</button><span class="muted">A memória por aba é aproximada (inclui só o processo principal da página).</span></div>
+  <div class="tablewrap"><table><thead><tr><th>Aba</th><th>Estado</th><th style="text-align:right">RAM</th><th style="text-align:right">CPU</th><th style="text-align:right">Parada</th><th></th></tr></thead><tbody id="tabs"></tbody></table></div>
+
+  <h2>Atividade recente</h2>
+  <div id="log" class="log"></div>
+  <div id="msg" class="msg"></div>
+</main>
+
+<script>
+const api = window.saturniumPerformance;
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat("pt-BR");
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function say(t){$("msg").textContent=t||""}
+function errText(e){return (e&&e.message||"Erro").replace(/^Error invoking remote method '[^']*': (Error: )?/,"")}
+function mb(v){return v>=1024?(v/1024).toFixed(1).replace(".",",")+" GB":nf.format(Math.round(v))+" MB"}
+
+let status = null;
+let pending = null;     // alterações ainda não enviadas
+let timer = null;
+let dragging = false;
+
+function setBar(id, ratio){
+  const el = $(id); const r = Math.max(0, Math.min(1, ratio || 0));
+  el.firstElementChild.style.width = (r*100)+"%";
+  el.classList.toggle("warn", r >= .8 && r < 1);
+  el.classList.toggle("over", r >= 1);
+}
+
+function renderUsage(){
+  const u = status.usage, st = status.settings, sys = status.system;
+  if(u){
+    $("g-ram").innerHTML = mb(u.ramMB) + (st.ramLimitMB ? ` <small>de ${mb(st.ramLimitMB)}</small>` : "");
+    setBar("b-ram", st.ramLimitMB ? u.ramMB/st.ramLimitMB : u.ramMB/sys.totalMemMB);
+    $("g-ram-sub").textContent = `${u.processCount} processos • base do navegador ≈ ${mb(u.baseMB)} • computador: ${mb(sys.totalMemMB)}`;
+    $("g-cpu").innerHTML = u.cpuAvg.toFixed(1).replace(".",",") + "%" + (st.cpuLimitPercent ? ` <small>de ${st.cpuLimitPercent}%</small>` : "");
+    setBar("b-cpu", st.cpuLimitPercent ? u.cpuAvg/st.cpuLimitPercent : u.cpuAvg/100);
+    $("g-cpu-sub").textContent = status.guard.cpuGuardActive ? "Acima do limite: abas em segundo plano com prioridade mínima." : `Média dos últimos segundos • ${sys.cores} núcleos`;
+  }
+  const total = status.tabs.length, susp = status.tabs.filter(t=>t.state==="suspended").length;
+  $("g-tabs").innerHTML = `${total - susp} <small>ativas</small> • ${susp} <small>suspensas</small>`;
+  $("g-tabs-sub").textContent = status.guard.suspendedTotal ? `${status.guard.suspendedTotal} suspensões desde que o navegador abriu.` : "Nenhuma suspensão ainda.";
+  $("g-saved").textContent = mb(status.guard.savedMB);
+  const note = $("note");
+  note.style.display = status.guard.note ? "block" : "none";
+  note.textContent = status.guard.note || "";
+  $("restart").style.display = status.restartRequired ? "flex" : "none";
+  $("eco-desc").textContent = `Limita RAM (≈ ${mb(Math.max(1024, Math.round(sys.totalMemMB*.35/256)*256))}) e CPU (50%) e suspende abas paradas há 10 min.`;
+}
+
+function renderControls(){
+  const st = status.settings, L = status.limits, sys = status.system;
+  document.querySelectorAll("[data-profile]").forEach(b => b.classList.toggle("active", b.dataset.profile === status.profile));
+  $("custom-note").style.display = status.profile === "custom" ? "block" : "none";
+  $("enabled").checked = st.enabled;
+
+  const ram = $("ram"); ram.min = L.ramLimitMB[0]; ram.max = Math.max(L.ramLimitMB[0], Math.min(L.ramLimitMB[1], Math.round(sys.totalMemMB/128)*128));
+  const ramOn = st.ramLimitMB > 0; $("ram-on").checked = ramOn; $("opt-ram").classList.toggle("off", !ramOn);
+  ram.value = ramOn ? st.ramLimitMB : Math.min(ram.max, Math.max(ram.min, Math.round(sys.totalMemMB*.35/128)*128));
+  $("ram-val").textContent = ramOn ? mb(+ram.value) : "Sem limite";
+
+  const cpuOn = st.cpuLimitPercent > 0; $("cpu-on").checked = cpuOn; $("opt-cpu").classList.toggle("off", !cpuOn);
+  $("cpu").value = cpuOn ? st.cpuLimitPercent : 50; $("cpu-val").textContent = cpuOn ? $("cpu").value + "%" : "Sem limite";
+
+  const idle = $("idle");
+  if(![...idle.options].some(o => +o.value === st.autoSuspendMinutes)) idle.add(new Option(st.autoSuspendMinutes + " minutos", st.autoSuspendMinutes));
+  idle.value = st.autoSuspendMinutes;
+
+  $("lowprio").checked = st.lowerBackgroundPriority;
+  $("pinned").checked = st.protectPinned;
+  $("gpu").checked = st.hardwareAcceleration;
+  const heapOn = st.jsHeapLimitMB > 0; $("heap-on").checked = heapOn; $("opt-heap").classList.toggle("off", !heapOn);
+  $("heap").value = heapOn ? st.jsHeapLimitMB : 2048; $("heap-val").textContent = heapOn ? mb(+$("heap").value) : "Automático";
+}
+
+function ago(ts){
+  const s = Math.max(0, Math.round((Date.now()-ts)/1000));
+  return s < 60 ? `há ${s} s` : s < 3600 ? `há ${Math.round(s/60)} min` : `há ${Math.round(s/3600)} h`;
+}
+
+function renderLists(){
+  const stateLabel = {active:"Ativa", background:"Em segundo plano", suspended:"Suspensa"};
+  $("tabs").innerHTML = status.tabs.length ? status.tabs.map(t => `<tr>
+    <td class="title" title="${esc(t.title)}">${esc(t.title || t.host || "Aba")}${t.pinned?' 📌':''}<div class="muted">${esc(t.host)}</div></td>
+    <td><span class="pill ${esc(t.state)}">${stateLabel[t.state]||""}</span></td>
+    <td class="num">${t.state==="suspended"?"—":mb(t.ramMB)}</td>
+    <td class="num">${t.state==="suspended"?"—":t.cpuPercent.toFixed(1).replace(".",",")+"%"}</td>
+    <td class="num">${t.state==="background"?t.idleMinutes+" min":"—"}</td>
+    <td>${t.canSuspend?`<button class="act" data-suspend="${t.id}">Suspender</button>`:`<span class="muted">${esc(t.protectedReason||"")}</span>`}</td></tr>`).join("")
+    : '<tr><td colspan="6" class="muted">Nenhuma aba aberta.</td></tr>';
+  $("log").innerHTML = status.guard.log.length
+    ? status.guard.log.map(l => `<div><time>${ago(l.at)}</time>${esc(l.text)}</div>`).join("")
+    : '<div class="muted">Nenhuma ação automática ainda.</div>';
+}
+
+function render(full){
+  renderUsage(); renderLists();
+  if(full) renderControls();
+}
+
+async function refresh(){
+  try{ status = await api.getStatus(); render(!pending && !dragging); }
+  catch(e){ say(errText(e)); }
+}
+
+// Envia as alterações dos controles em um único pedido (evita enviar a cada pixel do controle deslizante).
+function queue(patch){
+  pending = Object.assign(pending || {}, patch);
+  clearTimeout(timer);
+  timer = setTimeout(flush, 350);
+}
+async function flush(){
+  const patch = pending; pending = null;
+  if(!patch) return;
+  try{ say(""); status = await api.update(patch); render(true); }
+  catch(e){ say(errText(e)); refresh(); }
+}
+async function action(fn){
+  try{ say(""); status = await fn(); render(true); }
+  catch(e){ say(errText(e)); }
+}
+
+// ----- controles -----
+$("profiles").addEventListener("click", e => { const b = e.target.closest("[data-profile]"); if(b) action(() => api.applyProfile(b.dataset.profile)); });
+$("enabled").addEventListener("change", e => queue({enabled:e.target.checked}));
+$("lowprio").addEventListener("change", e => queue({lowerBackgroundPriority:e.target.checked}));
+$("pinned").addEventListener("change", e => queue({protectPinned:e.target.checked}));
+$("gpu").addEventListener("change", e => queue({hardwareAcceleration:e.target.checked}));
+$("idle").addEventListener("change", e => queue({autoSuspendMinutes:+e.target.value}));
+
+function limitControl(onId, rangeId, valId, key, fmt, off){
+  $(onId).addEventListener("change", e => {
+    queue({[key]: e.target.checked ? +$(rangeId).value : 0});
+    $(valId).textContent = e.target.checked ? fmt(+$(rangeId).value) : off;
+    e.target.closest(".opt").classList.toggle("off", !e.target.checked);
+  });
+  const r = $(rangeId);
+  r.addEventListener("pointerdown", () => dragging = true);
+  r.addEventListener("pointerup", () => dragging = false);
+  r.addEventListener("input", () => { $(valId).textContent = fmt(+r.value); queue({[key]: +r.value}); });
+}
+limitControl("ram-on","ram","ram-val","ramLimitMB", mb, "Sem limite");
+limitControl("cpu-on","cpu","cpu-val","cpuLimitPercent", v => v + "%", "Sem limite");
+limitControl("heap-on","heap","heap-val","jsHeapLimitMB", mb, "Automático");
+
+$("tabs").addEventListener("click", e => { const b = e.target.closest("[data-suspend]"); if(b) action(() => api.suspendTab(+b.dataset.suspend)); });
+$("suspend-all").addEventListener("click", () => action(() => api.suspendBackground()));
+$("relaunch").addEventListener("click", () => api.relaunch());
+
+refresh();
+setInterval(() => { if(!document.hidden) refresh(); }, 2000);
+</script>
+</body>
+</html>

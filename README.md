@@ -146,6 +146,23 @@ As extensões oficiais identificadas no código são:
 
 As extensões utilizam manifests e uma API interna de permissões.
 
+## ⚡ Desempenho
+
+Abra pelo menu **Desempenho** ou digitando `saturnium://performance`. A página mostra RAM e CPU em tempo real e permite ajustar:
+
+| Opção | O que faz |
+|---|---|
+| Perfis (Desempenho / Equilibrado / Econômico) | Combinações prontas dos controles abaixo |
+| Limite de RAM | Ao passar do teto, suspende as abas em segundo plano usadas há mais tempo |
+| Limite de CPU | Rebaixa a prioridade das abas de fundo e, se o excesso persistir, suspende a que mais consome |
+| Suspender abas inativas | Libera a memória de abas paradas há 5 min a 2 h |
+| Prioridade menor em segundo plano | A aba em uso fica mais fluida com o computador ocupado |
+| Aceleração por hardware / teto de memória JS por aba | Avançado; **exigem reiniciar** o navegador |
+
+Abas suspensas continuam na barra (esmaecidas) e recarregam, com o histórico de voltar/avançar, ao serem clicadas. A aba ativa, abas tocando áudio, carregando, fixadas (opcional) e páginas internas nunca são suspensas.
+
+**Limites são metas, não travas:** o sistema operacional não permite fixar um programa exatamente em X MB ou X% de CPU. O navegador mede a cada 5 segundos e age sobre as abas em segundo plano; se a aba ativa sozinha passar do limite, ele avisa, mas não a restringe. As configurações ficam em `performance.json` na pasta de dados do app.
+
 **AdBlock:** a extensão informa listas de domínios (`extensions/official/saturnium-adblock/filters/`) e o navegador decide o bloqueio no mesmo ponto onde já cancela domínios maliciosos. Apenas requisições de terceiros são bloqueadas; a navegação principal e as páginas internas nunca são filtradas. Funciona por domínio, então não remove anúncios veiculados pelo próprio domínio do site (como os anúncios dentro de vídeos do YouTube). Para editar as listas, adicione um domínio por linha nos arquivos `ads.txt` e `trackers.txt`.
 
 **Observação:** a existência do código de uma extensão não significa que todos os sites ou situações sejam compatíveis com ela.

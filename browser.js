@@ -244,6 +244,19 @@ function renderTabs(data) {
         }
 
 
+        // Aba suspensa pelo sistema de desempenho (volta ao clicar)
+        if (tab.discarded) {
+
+            tabElement.classList.add(
+                "discarded"
+            );
+
+            tabElement.title =
+                "Aba suspensa para economizar memória. Clique para reativar.";
+
+        }
+
+
         // =================================
         // FAVICON
         // =================================

@@ -77,6 +77,13 @@ const EXT_PRELOAD = path.join(
     "extensions-preload.js"
 );
 
+const PERF_PRELOAD = path.join(
+    __dirname,
+    "..",
+    "performance",
+    "performance-preload.js"
+);
+
 
 class TabManager {
 
@@ -146,6 +153,11 @@ class TabManager {
         this.onWebPageReady =
             callbacks.onWebPageReady || null;
 
+        // Chamado quando o usuário troca de aba (o sistema de desempenho
+        // devolve prioridade normal à aba que acabou de ser ativada).
+        this.onTabActivated =
+            callbacks.onTabActivated || null;
+
         this.tabs = [];
 
         this.activeTabId = null;
@@ -183,6 +195,8 @@ class TabManager {
 
         const extPreload = options.extensions === true;
 
+        const perfPreload = options.performance === true;
+
         const view = new WebContentsView({
 
             webPreferences: {
@@ -195,7 +209,9 @@ class TabManager {
 
                 ...(aiPreload ? { preload: AI_PRELOAD } : {}),
 
-                ...(extPreload ? { preload: EXT_PRELOAD } : {})
+                ...(extPreload ? { preload: EXT_PRELOAD } : {}),
+
+                ...(perfPreload ? { preload: PERF_PRELOAD } : {})
 
             }
 
@@ -222,7 +238,14 @@ class TabManager {
 
             aiPreload,
 
-            extPreload
+            extPreload,
+
+            perfPreload,
+
+            // Para o sistema de desempenho (suspensão de abas)
+            lastActiveAt: Date.now(),
+
+            discarded: false
 
         };
 
@@ -241,42 +264,7 @@ class TabManager {
         this.setupEvents(tab);
 
 
-        view.webContents.on(
-            "dom-ready",
-            () => {
-
-                if (
-                    !tab.internal &&
-                    typeof this.onWebPageReady === "function"
-                ) {
-
-                    this.onWebPageReady(
-                        view.webContents
-                    );
-
-                }
-
-            }
-        );
-
-
-        view.webContents.on(
-            "did-finish-load",
-            () => {
-
-                if (
-                    tab.internal &&
-                    typeof this.onInternalPageLoaded === "function"
-                ) {
-
-                    this.onInternalPageLoaded(
-                        view.webContents
-                    );
-
-                }
-
-            }
-        );
+        this.attachListeners(tab);
 
 
         // =================================
@@ -797,6 +785,255 @@ class TabManager {
 
 
     // =====================================
+    // LISTENERS DA PÁGINA
+    // (usados na criação e quando uma
+    // aba suspensa é recriada)
+    // =====================================
+
+    attachListeners(tab) {
+
+        const webContents =
+            tab.view.webContents;
+
+        // O Chromium já reduz timers de abas ocultas; isto só garante que continue assim.
+        if (typeof webContents.setBackgroundThrottling === "function") {
+
+            webContents.setBackgroundThrottling(true);
+
+        }
+
+        webContents.on(
+            "dom-ready",
+            () => {
+
+                if (
+                    !tab.internal &&
+                    typeof this.onWebPageReady === "function"
+                ) {
+
+                    this.onWebPageReady(
+                        webContents
+                    );
+
+                }
+
+            }
+        );
+
+
+        webContents.on(
+            "did-finish-load",
+            () => {
+
+                if (
+                    tab.internal &&
+                    typeof this.onInternalPageLoaded === "function"
+                ) {
+
+                    this.onInternalPageLoaded(
+                        webContents
+                    );
+
+                }
+
+            }
+        );
+
+    }
+
+
+    // =====================================
+    // SUSPENDER / ACORDAR ABA
+    //
+    // Suspender destrói a página (libera RAM e CPU),
+    // mas mantém a aba na barra com título, ícone e
+    // histórico de voltar/avançar. Ao clicar nela, a
+    // página é recriada e recarregada.
+    // =====================================
+
+    discardTab(id) {
+
+        const tab =
+            this.tabs.find(
+                t => t.id === id
+            );
+
+        if (
+            !tab ||
+            tab.discarded ||
+            tab.internal ||
+            !tab.view ||
+            tab.id === this.activeTabId
+        ) {
+
+            return false;
+        }
+
+        const webContents =
+            tab.view.webContents;
+
+        if (webContents.isDestroyed()) {
+
+            return false;
+        }
+
+        let url = "";
+
+        try {
+            url = webContents.getURL();
+        } catch {
+            url = "";
+        }
+
+        url = url || tab.url || "";
+
+        if (!/^https?:\/\//i.test(url)) {
+
+            return false;
+        }
+
+        // Guarda o histórico de navegação da aba (no máximo 50 entradas ao redor da atual).
+        let history = null;
+
+        try {
+
+            const nav = webContents.navigationHistory;
+
+            let entries = nav.getAllEntries();
+
+            let index = nav.getActiveIndex();
+
+            if (entries.length > 50) {
+
+                const first = Math.max(0, index - 25);
+
+                entries = entries.slice(first, first + 50);
+
+                index -= first;
+
+            }
+
+            history = {
+                entries: entries.map(
+                    e => ({
+                        url: e.url,
+                        title: e.title,
+                        pageState: e.pageState
+                    })
+                ),
+                index
+            };
+
+        } catch {
+
+            history = null;
+
+        }
+
+        tab.restore = { url, history };
+        tab.url = url;
+        tab.discarded = true;
+        tab.loading = false;
+
+        try {
+            this.window.contentView.removeChildView(
+                tab.view
+            );
+        } catch { /* já removida */ }
+
+        try {
+            webContents.close();
+        } catch { /* já fechada */ }
+
+        tab.view = null;
+
+        this.sendTabs();
+
+        return true;
+    }
+
+
+    wakeTab(tab) {
+
+        if (!tab || !tab.discarded) {
+
+            return;
+        }
+
+        const view = new WebContentsView({
+
+            webPreferences: {
+
+                contextIsolation: true,
+
+                nodeIntegration: false,
+
+                sandbox: true
+
+            }
+
+        });
+
+        tab.view = view;
+
+        tab.discarded = false;
+
+        this.window.contentView.addChildView(
+            view
+        );
+
+        view.setVisible(false);
+
+        this.setupEvents(tab);
+
+        this.attachListeners(tab);
+
+        const restore =
+            tab.restore || { url: tab.url, history: null };
+
+        tab.restore = null;
+
+        const webContents =
+            view.webContents;
+
+        const loadUrl = () => {
+
+            if (!webContents.isDestroyed()) {
+
+                webContents.loadURL(
+                    restore.url
+                ).catch(() => {});
+
+            }
+
+        };
+
+        // Tenta recuperar também o histórico (voltar/avançar); se falhar, só carrega a página.
+        if (
+            restore.history &&
+            restore.history.entries.length
+        ) {
+
+            try {
+
+                Promise.resolve(
+                    webContents.navigationHistory.restore({
+                        entries: restore.history.entries,
+                        index: restore.history.index
+                    })
+                ).catch(loadUrl);
+
+                return;
+
+            } catch { /* cai no loadURL */ }
+
+        }
+
+        loadUrl();
+    }
+
+
+    // =====================================
     // ATIVAR ABA
     // =====================================
 
@@ -814,6 +1051,26 @@ class TabManager {
         }
 
 
+        // Aba suspensa: recria a página antes de mostrá-la.
+        if (tab.discarded) {
+
+            this.wakeTab(tab);
+
+        }
+
+        const now = Date.now();
+
+        const previous =
+            this.tabs.find(
+                t => t.id === this.activeTabId
+            );
+
+        if (previous) {
+            previous.lastActiveAt = now;
+        }
+
+        tab.lastActiveAt = now;
+
         this.activeTabId = id;
 
         if (!tab.internal) {
@@ -825,9 +1082,13 @@ class TabManager {
             const currentTab of this.tabs
         ) {
 
-            currentTab.view.setVisible(
-                currentTab.id === id
-            );
+            if (currentTab.view) {
+
+                currentTab.view.setVisible(
+                    currentTab.id === id
+                );
+
+            }
 
         }
 
@@ -840,6 +1101,12 @@ class TabManager {
         this.sendTabs();
 
         this.sendNavigationState(tab);
+
+        if (typeof this.onTabActivated === "function") {
+
+            this.onTabActivated(tab);
+
+        }
 
     }
 
@@ -894,12 +1161,17 @@ class TabManager {
         }
 
 
-        this.window.contentView.removeChildView(
-            tab.view
-        );
+        // Aba suspensa não tem página para fechar.
+        if (tab.view) {
+
+            this.window.contentView.removeChildView(
+                tab.view
+            );
 
 
-        tab.view.webContents.close();
+            tab.view.webContents.close();
+
+        }
 
 
         this.tabs.splice(index, 1);
@@ -1511,6 +1783,7 @@ class TabManager {
         return this.tabs.some(
             tab =>
                 tab.aiPreload &&
+                tab.view &&
                 tab.view.webContents === webContents &&
                 /^saturnium:\/\/ai(?:[/?#]|$)/i.test(
                     webContents.getURL()
@@ -1524,8 +1797,49 @@ class TabManager {
         return this.tabs.some(
             tab =>
                 tab.extPreload &&
+                tab.view &&
                 tab.view.webContents === webContents &&
                 /^saturnium:\/\/(?:extensions|ext)(?:[/?#]|$)/i.test(
+                    webContents.getURL()
+                )
+        );
+
+    }
+
+    // Página de desempenho (saturnium://performance). Reaproveita a aba se já estiver aberta.
+    openPerformance() {
+
+        const existing = this.tabs.find(
+            tab => tab.perfPreload && tab.view
+        );
+
+        if (existing) {
+
+            this.activateTab(existing.id);
+
+            return existing;
+        }
+
+        const tab = this.createTab(null, { performance: true });
+
+        tab.internal = true;
+        tab.url = "saturnium://performance";
+        tab.title = "Desempenho - SaturniumBrowser";
+        tab.view.webContents.loadURL("saturnium://performance");
+        this.sendTabUpdate(tab);
+        this.sendTabs();
+
+        return tab;
+    }
+
+    isPerformanceWebContents(webContents) {
+
+        return this.tabs.some(
+            tab =>
+                tab.perfPreload &&
+                tab.view &&
+                tab.view.webContents === webContents &&
+                /^saturnium:\/\/performance(?:[/?#]|$)/i.test(
                     webContents.getURL()
                 )
         );
@@ -1747,6 +2061,14 @@ class TabManager {
                 this.openInternalPage(
                     "newtab"
                 );
+
+                return;
+            }
+
+
+            if (page === "performance") {
+
+                this.openPerformance();
 
                 return;
             }
@@ -2036,6 +2358,10 @@ class TabManager {
             const tab of this.tabs
         ) {
 
+            if (!tab.view) {
+                continue;
+            }
+
             tab.view.setBounds({
 
                 x: 0,
@@ -2118,7 +2444,9 @@ class TabManager {
 
                     loading: tab.loading,
 
-                    pinned: tab.pinned
+                    pinned: tab.pinned,
+
+                    discarded: !!tab.discarded
 
                 }))
 

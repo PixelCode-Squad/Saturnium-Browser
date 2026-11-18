@@ -22,6 +22,14 @@ const UpdateManager =
 const AIManager =
     require("./src/ai/AIManager");
 
+const { applyStartupFlags } =
+    require("./src/performance/startupFlags");
+
+// Opções de desempenho que o Chromium só lê na inicialização
+// (aceleração por hardware, teto de memória JS). Precisa vir
+// antes do app ficar pronto.
+applyStartupFlags(app);
+
 let win;
 
 let browserManager;
@@ -466,6 +474,78 @@ ipcMain.handle("extensions-call", async (event, id, method, args) => {
 
 
 // ==========================================
+// DESEMPENHO — IPC SEGURO
+// Só a página interna saturnium://performance
+// pode ler ou alterar estas configurações.
+// ==========================================
+
+function isTrustedPerformanceEvent(event) {
+    return !!(
+        browserManager &&
+        browserManager.performance &&
+        event &&
+        browserManager.isPerformanceWebContents(event.sender)
+    );
+}
+
+ipcMain.handle("performance-get", (event) => {
+
+    if (!isTrustedPerformanceEvent(event)) throw new Error("UNAUTHORIZED");
+
+    return browserManager.performance.getStatus();
+
+});
+
+ipcMain.handle("performance-update", (event, patch) => {
+
+    if (!isTrustedPerformanceEvent(event)) throw new Error("UNAUTHORIZED");
+
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new Error("Configuração inválida.");
+
+    return browserManager.performance.update(patch);
+
+});
+
+ipcMain.handle("performance-profile", (event, name) => {
+
+    if (!isTrustedPerformanceEvent(event)) throw new Error("UNAUTHORIZED");
+
+    if (typeof name !== "string") throw new Error("Perfil inválido.");
+
+    return browserManager.performance.applyProfile(name);
+
+});
+
+ipcMain.handle("performance-suspend", (event, id) => {
+
+    if (!isTrustedPerformanceEvent(event)) throw new Error("UNAUTHORIZED");
+
+    if (!Number.isInteger(id)) throw new Error("Aba inválida.");
+
+    return browserManager.performance.suspendTab(id);
+
+});
+
+ipcMain.handle("performance-suspend-background", (event) => {
+
+    if (!isTrustedPerformanceEvent(event)) throw new Error("UNAUTHORIZED");
+
+    return browserManager.performance.suspendBackground();
+
+});
+
+ipcMain.handle("performance-relaunch", (event) => {
+
+    if (!isTrustedPerformanceEvent(event)) throw new Error("UNAUTHORIZED");
+
+    app.relaunch();
+
+    app.quit();
+
+});
+
+
+// ==========================================
 // SATURNIUM AI — IPC SEGURO
 // ==========================================
 
@@ -902,6 +982,16 @@ ipcMain.on(
             },
 
             {
+                label: "Desempenho",
+
+                click: () => {
+
+                    browserManager.openPerformance();
+
+                }
+            },
+
+            {
                 label: "SaturniumAI",
 
                 accelerator: "Ctrl+Shift+A",
@@ -1208,6 +1298,10 @@ app.whenReady().then(async () => {
                 file = "extensions.html";
                 break;
 
+            case "performance":
+                file = "performance.html";
+                break;
+
             case "ext": {
                 // saturnium://ext/<id>/<arquivo> — arquivos de extensões ativas
                 const parts = url.pathname.split("/").filter(Boolean);
@@ -1309,6 +1403,28 @@ app.on(
         ) {
 
             app.quit();
+
+        }
+
+    }
+);
+
+// ==========================================
+// ENCERRAMENTO
+// Devolve a prioridade normal aos processos
+// que o sistema de desempenho rebaixou.
+// ==========================================
+
+app.on(
+    "before-quit",
+    () => {
+
+        if (
+            browserManager &&
+            browserManager.performance
+        ) {
+
+            browserManager.performance.stop();
 
         }
 

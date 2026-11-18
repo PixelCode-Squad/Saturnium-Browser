@@ -1,4 +1,4 @@
-const { session } = require("electron");
+const { app, session } = require("electron");
 
 const TabManager =
     require("./TabManager");
@@ -24,6 +24,10 @@ const AIManager =
 
 const ExtensionManager = require("../extensions/ExtensionManager");
 
+const PerformanceManager = require("../performance/PerformanceManager");
+
+const PerformanceSettings = require("../performance/PerformanceSettings");
+
 class BrowserManager {
 
     constructor(window) {
@@ -35,13 +39,13 @@ class BrowserManager {
             getInternalContents: () =>
                 this.tabManager
                     ? this.tabManager.tabs
-                        .filter(tab => tab.internal)
+                        .filter(tab => tab.internal && tab.view)
                         .map(tab => tab.view.webContents)
                     : [],
             getWebContents: () =>
                 this.tabManager
                     ? this.tabManager.tabs
-                        .filter(tab => !tab.internal)
+                        .filter(tab => !tab.internal && tab.view)
                         .map(tab => tab.view.webContents)
                     : [],
             // Última aba web usada: assim as páginas de configuração (que são a aba ativa)
@@ -53,7 +57,7 @@ class BrowserManager {
                 const tab = active && !active.internal
                     ? active
                     : tm.tabs.find(t => t.id === tm.lastWebTabId && !t.internal);
-                return tab ? tab.view.webContents : null;
+                return tab && tab.view ? tab.view.webContents : null;
             },
             openExtensionPage: (id, query) => {
                 const file = this.extensions.settingsFile(id);
@@ -105,6 +109,10 @@ class BrowserManager {
 
                     onWebPageReady: (webContents) => {
                         this.extensions.host.applyToWeb(webContents);
+                    },
+
+                    onTabActivated: () => {
+                        if (this.performance) this.performance.onTabActivated();
                     },
 
                     onNavigate: (url, title, favicon) => {
@@ -196,6 +204,25 @@ class BrowserManager {
         );
 
         // =====================================
+        // DESEMPENHO (limites de RAM/CPU,
+        // suspensão de abas, prioridades)
+        // =====================================
+
+        this.performance =
+            new PerformanceManager({
+
+                app,
+
+                tabManager: this.tabManager,
+
+                settingsFile:
+                    PerformanceSettings.settingsFile(
+                        app.getPath("userData")
+                    )
+
+            });
+
+        // =====================================
         // GERENCIADOR DE NAVEGAÇÃO
         // =====================================
 
@@ -215,6 +242,8 @@ class BrowserManager {
         this.extensions.initialize();
 
         this.tabManager.createTab();
+
+        this.performance.start();
 
     }
 
@@ -450,6 +479,18 @@ class BrowserManager {
     openExtensions() {
 
         this.tabManager.openExtensions();
+
+    }
+
+    openPerformance() {
+
+        return this.tabManager.openPerformance();
+
+    }
+
+    isPerformanceWebContents(webContents) {
+
+        return this.tabManager.isPerformanceWebContents(webContents);
 
     }
 
