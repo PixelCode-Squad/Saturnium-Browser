@@ -40,7 +40,7 @@ const downloadsBarCloseButton =
 const downloadsBarOpenAllButton =
     document.getElementById("downloads-bar-open-all");
 
-
+//
 // =====================================
 // MENU (TRÊS PONTINHOS)
 // Usa o menu nativo do sistema operacional,
