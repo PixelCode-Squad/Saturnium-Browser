@@ -78,6 +78,21 @@ contextBridge.exposeInMainWorld(
 
         },
 
+        onFindBarOpen: (callback) =>
+            ipcRenderer.on("find-bar-open", () => callback()),
+
+        setFindBarVisible: (visible) =>
+            ipcRenderer.send("find-bar-visible", !!visible),
+
+        findInPage: (text, findNext, forward) =>
+            ipcRenderer.send("find-in-page", text, !!findNext, forward !== false),
+
+        stopFindInPage: () =>
+            ipcRenderer.send("find-in-page-stop"),
+
+        onFindInPageResult: (callback) =>
+            ipcRenderer.on("find-in-page-result", (event, data) => callback(data)),
+
 
         // ==========================================
         // ABAS

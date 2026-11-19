@@ -200,6 +200,7 @@ body {
 }
 
 .bookmarks-bar {
+    height: 34px;
     min-height: 34px;
     flex-shrink: 0;
     display: flex;
@@ -213,6 +214,60 @@ body {
 
 .bookmarks-bar:empty {
     display: none;
+}
+
+.find-bar {
+    height: 44px;
+    flex-shrink: 0;
+    display: none;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    padding: 5px 12px;
+    background: #202020;
+    border-top: 1px solid #303030;
+}
+
+.find-bar.visible {
+    display: flex;
+}
+
+.find-bar input {
+    width: min(320px, 42vw);
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid #414151;
+    border-radius: 6px;
+    outline: none;
+    background: #11131c;
+    color: white;
+    font-size: 13px;
+}
+
+.find-bar input:focus {
+    border-color: var(--sb-accent);
+}
+
+.find-count {
+    min-width: 62px;
+    color: #b6b9c8;
+    font-size: 12px;
+    text-align: center;
+}
+
+.find-bar button {
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--sb-button);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.find-bar button:hover {
+    background: var(--sb-button-hover);
 }
 
 .bookmark-bar-item {

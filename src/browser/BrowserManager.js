@@ -298,6 +298,22 @@ class BrowserManager {
 
     }
 
+    findInPage(text, options) {
+        this.tabManager.findInPage(text, options);
+    }
+
+    stopFindInPage() {
+        this.tabManager.clearFindInPage();
+        const tab = this.tabManager.getActiveTab();
+        if (tab && tab.view && !tab.view.webContents.isDestroyed()) {
+            tab.view.webContents.focus();
+        }
+    }
+
+    setFindBarVisible(visible) {
+        this.tabManager.setFindBarVisible(visible);
+    }
+
 
     back() {
 

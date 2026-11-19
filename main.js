@@ -188,6 +188,16 @@ function handleKeyboardInput(
 
     }
 
+    if (
+        input.control &&
+        !input.shift &&
+        input.key.toLowerCase() === "f"
+    ) {
+        event.preventDefault();
+        win.webContents.send("find-bar-open");
+        return;
+    }
+
 
     // ======================================
     // CTRL + L
@@ -419,6 +429,29 @@ ipcMain.on(
 
     }
 );
+
+function isMainWindowEvent(event) {
+    return !!(win && event && event.sender === win.webContents);
+}
+
+ipcMain.on("find-bar-visible", (event, visible) => {
+    if (!isMainWindowEvent(event) || !browserManager) return;
+    browserManager.setFindBarVisible(visible === true);
+});
+
+ipcMain.on("find-in-page", (event, text, findNext, forward) => {
+    if (!isMainWindowEvent(event) || !browserManager) return;
+    if (typeof text !== "string" || text.length > 1000) return;
+    browserManager.findInPage(text, {
+        findNext: findNext === true,
+        forward: forward !== false
+    });
+});
+
+ipcMain.on("find-in-page-stop", (event) => {
+    if (!isMainWindowEvent(event) || !browserManager) return;
+    browserManager.stopFindInPage();
+});
 
 
 // ==========================================

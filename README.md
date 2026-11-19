@@ -36,6 +36,7 @@ O objetivo é desenvolver um navegador independente, com funcionalidades integra
 - Abas fixadas.
 - Reabrir abas fechadas recentemente.
 - Indicadores de carregamento e informações de navegação.
+- Localizar na página com `Ctrl+F`, contador de resultados e navegação entre ocorrências.
 
 ### 🔎 Pesquisa
 

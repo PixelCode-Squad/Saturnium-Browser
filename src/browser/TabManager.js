@@ -186,6 +186,8 @@ class TabManager {
         // =================================
 
         this.downloadsBarHeight = 0;
+
+        this.findBarHeight = 0;
     }
 
 
@@ -468,6 +470,16 @@ class TabManager {
                     return;
                 }
 
+                if (
+                    input.control &&
+                    !input.shift &&
+                    input.key.toLowerCase() === "f"
+                ) {
+                    event.preventDefault();
+                    this.window.webContents.send("find-bar-open");
+                    return;
+                }
+
                 // CTRL + SHIFT + B — FAVORITOS
                 if (
                     input.control &&
@@ -481,6 +493,15 @@ class TabManager {
 
             }
         );
+
+        webContents.on("found-in-page", (event, result) => {
+            if (result.requestId !== tab.findRequestId) return;
+            this.window.webContents.send("find-in-page-result", {
+                tabId: tab.id,
+                activeMatchOrdinal: result.activeMatchOrdinal,
+                matches: result.matches
+            });
+        });
 
 
         // =================================
@@ -2328,6 +2349,34 @@ class TabManager {
 
 
     // =====================================
+    // LOCALIZAR NA PÁGINA
+    // =====================================
+
+    findInPage(text, options = {}) {
+        const tab = this.getActiveTab();
+        if (!tab || !tab.view || tab.view.webContents.isDestroyed()) return;
+
+        if (typeof text !== "string" || text.length === 0) {
+            this.clearFindInPage();
+            return;
+        }
+
+        tab.findRequestId = tab.view.webContents.findInPage(text, {
+            findNext: options.findNext === true,
+            forward: options.forward !== false,
+            matchCase: false
+        });
+    }
+
+    clearFindInPage() {
+        for (const tab of this.tabs) {
+            if (!tab.view || tab.view.webContents.isDestroyed()) continue;
+            tab.findRequestId = null;
+            tab.view.webContents.stopFindInPage("clearSelection");
+        }
+    }
+
+    // =====================================
     // VOLTAR
     // =====================================
 
@@ -2402,13 +2451,7 @@ class TabManager {
             this.window.getContentBounds();
 
 
-        // Topbar: 45px
-        // Abas:    42px
-        // Toolbar: 55px
-        //
-        // Total: 142px
-
-        const top = 142;
+        const top = 176 + this.findBarHeight;
 
         const bottom =
             this.downloadsBarHeight || 0;
@@ -2456,6 +2499,13 @@ class TabManager {
 
         this.updateBounds();
 
+    }
+
+    setFindBarVisible(visible) {
+        const height = visible ? 44 : 0;
+        if (this.findBarHeight === height) return;
+        this.findBarHeight = height;
+        this.updateBounds();
     }
 
 

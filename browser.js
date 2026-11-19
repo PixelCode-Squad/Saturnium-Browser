@@ -7,6 +7,24 @@ const bookmarkButton =
 const bookmarksBar =
     document.getElementById("bookmarks-bar");
 
+const findBar =
+    document.getElementById("find-bar");
+
+const findInput =
+    document.getElementById("find-input");
+
+const findCount =
+    document.getElementById("find-count");
+
+const findPreviousButton =
+    document.getElementById("find-previous");
+
+const findNextButton =
+    document.getElementById("find-next");
+
+const findCloseButton =
+    document.getElementById("find-close");
+
 const backButton =
     document.getElementById("back");
 
@@ -313,6 +331,69 @@ newTabButton.addEventListener(
 
 let activeTabId = null;
 
+let findBarVisible = false;
+let lastFindTarget = { tabId: null, url: null };
+
+function runFind(findNext, forward) {
+    const text = findInput.value;
+    findCount.textContent = "";
+    if (!text) {
+        window.browserAPI.findInPage("", false, true);
+        lastFindTarget = { tabId: activeTabId, url: currentPageUrl };
+        return;
+    }
+
+    lastFindTarget = { tabId: activeTabId, url: currentPageUrl };
+    window.browserAPI.findInPage(text, findNext, forward);
+}
+
+function openFindBar() {
+    findBarVisible = true;
+    findBar.classList.add("visible");
+    window.browserAPI.setFindBarVisible(true);
+    findInput.focus();
+    findInput.select();
+    runFind(false, true);
+}
+
+function closeFindBar() {
+    findBarVisible = false;
+    findBar.classList.remove("visible");
+    findCount.textContent = "";
+    window.browserAPI.stopFindInPage();
+    window.browserAPI.setFindBarVisible(false);
+}
+
+findInput.addEventListener("input", () => runFind(false, true));
+
+findInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        runFind(true, !event.shiftKey);
+    } else if (event.key === "Escape") {
+        event.preventDefault();
+        closeFindBar();
+    }
+});
+
+findPreviousButton.addEventListener("click", () => runFind(true, false));
+findNextButton.addEventListener("click", () => runFind(true, true));
+findCloseButton.addEventListener("click", closeFindBar);
+
+window.browserAPI.onFindBarOpen(openFindBar);
+window.browserAPI.onFindInPageResult((result) => {
+    if (!findBarVisible || result.tabId !== activeTabId) return;
+    findCount.textContent = result.matches
+        ? `${result.activeMatchOrdinal} de ${result.matches}`
+        : "0 de 0";
+});
+
+function updateFindForActivePage(tabId, url) {
+    if (!findBarVisible) return;
+    if (lastFindTarget.tabId === tabId && lastFindTarget.url === url) return;
+    runFind(false, true);
+}
+
 
 function renderTabs(data) {
 
@@ -515,6 +596,9 @@ function renderTabs(data) {
 
 function updateActiveTab(tab) {
 
+    activeTabId = tab.id;
+    const previousUrl = currentPageUrl;
+
     const allTabs =
         document.querySelectorAll(
             ".tab"
@@ -553,6 +637,9 @@ function updateActiveTab(tab) {
     currentPageTitle = tab.title || tab.url || "";
     currentPageFavicon = tab.favicon || null;
     updateBookmarkButton(tab.url || "");
+    if (previousUrl !== currentPageUrl || lastFindTarget.tabId !== tab.id) {
+        updateFindForActivePage(tab.id, currentPageUrl);
+    }
 
     updateSecurityIndicator(
         tab.url || ""
