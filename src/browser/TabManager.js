@@ -468,6 +468,17 @@ class TabManager {
                     return;
                 }
 
+                // CTRL + SHIFT + B — FAVORITOS
+                if (
+                    input.control &&
+                    input.shift &&
+                    input.key.toLowerCase() === "b"
+                ) {
+                    event.preventDefault();
+                    this.openBookmarks();
+                    return;
+                }
+
             }
         );
 
@@ -1199,17 +1210,6 @@ class TabManager {
 
             return;
         }
-
-        if (
-            input.control &&
-            input.shift &&
-            input.key.toLowerCase() === "b"
-        ) {
-            event.preventDefault();
-            this.openBookmarks();
-            return;
-        }
-
 
         // =================================
         // SE FECHAMOS A ABA ATIVA
