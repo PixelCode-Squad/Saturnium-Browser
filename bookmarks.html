@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favoritos - SaturniumBrowser</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            color: #f4f4fa;
+            background: radial-gradient(circle at 50% 0%, #151b35 0%, #090c18 38%, #05060b 75%);
+        }
+        .layout { display: flex; min-height: 100vh; }
+        aside {
+            width: 260px;
+            flex-shrink: 0;
+            padding: 28px 16px;
+            background: #0c0f1b;
+            border-right: 1px solid #20243a;
+        }
+        h1 {
+            margin: 0;
+            font-size: 25px;
+            background: linear-gradient(90deg, #7d89ff, #d45cff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        aside h2 { margin: 28px 10px 10px; color: #777f9b; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+        button, select {
+            color: inherit;
+            font: inherit;
+        }
+        button {
+            border: 1px solid #292e48;
+            border-radius: 8px;
+            background: #151a2a;
+            cursor: pointer;
+        }
+        button:hover, button.selected { border-color: #7965ff; background: #201d3b; }
+        .folder-nav { display: grid; gap: 5px; }
+        .folder-nav button {
+            width: 100%;
+            padding: 9px 10px;
+            border-color: transparent;
+            background: transparent;
+            text-align: left;
+            font-size: 13px;
+        }
+        main { width: min(100%, 1050px); margin: 0 auto; padding: 36px 36px 60px; }
+        .header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+        #folder-actions, .toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .action { padding: 9px 13px; font-size: 12px; }
+        .toolbar-actions { margin-bottom: 22px; }
+        .notice { min-height: 22px; margin-bottom: 10px; color: #b8aaff; font-size: 13px; }
+        .notice.error { color: #ff9a9a; }
+        .section-label { margin: 22px 0 10px; color: #7d849c; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+        .folder-card, .bookmark-card {
+            min-width: 0;
+            padding: 13px;
+            border: 1px solid #20243a;
+            border-radius: 11px;
+            background: #101423;
+        }
+        .folder-card { display: flex; align-items: center; gap: 10px; }
+        .folder-open { min-width: 0; flex: 1; padding: 3px 0; overflow: hidden; border: 0; background: transparent; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+        .bookmark-card { display: flex; flex-direction: column; gap: 10px; }
+        .bookmark-open { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
+        .favicon { width: 20px; height: 20px; flex-shrink: 0; object-fit: contain; }
+        .bookmark-info { min-width: 0; }
+        .bookmark-title, .bookmark-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bookmark-title { font-size: 14px; }
+        .bookmark-url { margin-top: 4px; color: #737b96; font-size: 11px; }
+        .bookmark-actions { display: flex; align-items: center; gap: 7px; }
+        .bookmark-actions select { min-width: 0; flex: 1; padding: 7px; border: 1px solid #292e48; border-radius: 7px; background: #0b0e18; font-size: 11px; }
+        .small-action { padding: 7px 9px; font-size: 11px; }
+        .empty { margin: 45px 0; color: #737b96; text-align: center; font-size: 14px; }
+        @media (max-width: 700px) {
+            .layout { display: block; }
+            aside { width: 100%; padding: 20px 16px; border-right: 0; border-bottom: 1px solid #20243a; }
+            .folder-nav { display: flex; overflow-x: auto; }
+            .folder-nav button { width: auto; flex-shrink: 0; }
+            aside h2 { margin-top: 16px; }
+            main { padding: 24px 16px 40px; }
+            .header { align-items: flex-start; flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside>
+            <h1>Favoritos</h1>
+            <h2>Pastas</h2>
+            <nav id="folder-nav" class="folder-nav"></nav>
+        </aside>
+        <main>
+            <div class="header">
+                <h1 id="page-title">Todos os favoritos</h1>
+                <div id="folder-actions"></div>
+            </div>
+            <div class="toolbar-actions">
+                <button id="create-folder" class="action" type="button">＋ Nova pasta</button>
+                <button id="import-html" class="action" type="button">Importar HTML</button>
+                <button id="export-html" class="action" type="button">Exportar HTML</button>
+            </div>
+            <div id="notice" class="notice" role="status"></div>
+            <div id="folder-list"></div>
+            <div id="bookmark-list"></div>
+            <div id="empty" class="empty" hidden>Esta pasta ainda não tem favoritos.</div>
+        </main>
+    </div>
+    <script>
+        const params = new URLSearchParams(location.search);
+        const requestedFolder = params.get("folder");
+        let selectedFolderId = requestedFolder || null;
+        let currentData = { items: [], folders: [] };
+
+        const notice = document.getElementById("notice");
+        function showNotice(message, error = false) {
+            notice.textContent = message;
+            notice.classList.toggle("error", error);
+        }
+
+        function folderName(id) {
+            const folder = currentData.folders.find(entry => entry.id === id);
+            return folder ? folder.name : "Todos os favoritos";
+        }
+
+        function addFolderNav(parentId, depth) {
+            const children = currentData.folders.filter(folder => folder.parentId === parentId);
+            for (const folder of children) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = "📁 " + folder.name;
+                button.style.paddingLeft = `${10 + depth * 14}px`;
+                button.classList.toggle("selected", folder.id === selectedFolderId);
+                button.addEventListener("click", () => selectFolder(folder.id));
+                document.getElementById("folder-nav").appendChild(button);
+                addFolderNav(folder.id, depth + 1);
+            }
+        }
+
+        function selectFolder(id) {
+            selectedFolderId = id;
+            render();
+        }
+
+        async function refresh() {
+            try {
+                currentData = await window.bookmarksAPI.getAll();
+                if (selectedFolderId && !currentData.folders.some(folder => folder.id === selectedFolderId)) {
+                    selectedFolderId = null;
+                }
+                render();
+            } catch (error) {
+                showNotice(error.message || "Não foi possível carregar os favoritos.", true);
+            }
+        }
+
+        function render() {
+            const nav = document.getElementById("folder-nav");
+            const foldersElement = document.getElementById("folder-list");
+            const bookmarksElement = document.getElementById("bookmark-list");
+            const actions = document.getElementById("folder-actions");
+            nav.replaceChildren();
+            foldersElement.replaceChildren();
+            bookmarksElement.replaceChildren();
+            actions.replaceChildren();
+
+            const allButton = document.createElement("button");
+            allButton.type = "button";
+            allButton.textContent = "☆ Todos os favoritos";
+            allButton.classList.toggle("selected", !selectedFolderId);
+            allButton.addEventListener("click", () => selectFolder(null));
+            nav.appendChild(allButton);
+            addFolderNav(null, 0);
+
+            document.getElementById("page-title").textContent = folderName(selectedFolderId);
+
+            if (selectedFolderId) {
+                const rename = document.createElement("button");
+                rename.className = "action";
+                rename.type = "button";
+                rename.textContent = "Renomear pasta";
+                rename.addEventListener("click", async () => {
+                    const name = prompt("Novo nome da pasta:", folderName(selectedFolderId));
+                    if (!name) return;
+                    try {
+                        await window.bookmarksAPI.renameFolder(selectedFolderId, name);
+                        await refresh();
+                    } catch (error) { showNotice(error.message, true); }
+                });
+                const remove = document.createElement("button");
+                remove.className = "action";
+                remove.type = "button";
+                remove.textContent = "Excluir pasta";
+                remove.addEventListener("click", async () => {
+                    if (!confirm("Excluir esta pasta? Os favoritos e subpastas serão movidos para a pasta superior.")) return;
+                    try {
+                        await window.bookmarksAPI.deleteFolder(selectedFolderId);
+                        selectedFolderId = null;
+                        await refresh();
+                    } catch (error) { showNotice(error.message, true); }
+                });
+                actions.append(rename, remove);
+            }
+
+            const folders = currentData.folders.filter(folder => (folder.parentId || null) === selectedFolderId);
+            if (folders.length) {
+                const label = document.createElement("div");
+                label.className = "section-label";
+                label.textContent = "Pastas";
+                foldersElement.appendChild(label);
+                const grid = document.createElement("div");
+                grid.className = "grid";
+                for (const folder of folders) {
+                    const card = document.createElement("div");
+                    card.className = "folder-card";
+                    const open = document.createElement("button");
+                    open.className = "folder-open";
+                    open.type = "button";
+                    open.textContent = "📁 " + folder.name;
+                    open.title = folder.name;
+                    open.addEventListener("click", () => selectFolder(folder.id));
+                    card.appendChild(open);
+                    grid.appendChild(card);
+                }
+                foldersElement.appendChild(grid);
+            }
+
+            const items = currentData.items.filter(item => (item.folderId || null) === selectedFolderId);
+            if (items.length) {
+                const label = document.createElement("div");
+                label.className = "section-label";
+                label.textContent = "Páginas";
+                bookmarksElement.appendChild(label);
+                const grid = document.createElement("div");
+                grid.className = "grid";
+                for (const item of items) {
+                    const card = document.createElement("article");
+                    card.className = "bookmark-card";
+                    const open = document.createElement("button");
+                    open.className = "bookmark-open";
+                    open.type = "button";
+                    const favicon = document.createElement("img");
+                    favicon.className = "favicon";
+                    favicon.alt = "";
+                    if (/^https?:/i.test(item.favicon || "")) {
+                        favicon.src = item.favicon;
+                        favicon.onerror = () => favicon.remove();
+                    } else {
+                        favicon.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='20' font-size='20'%3E%E2%98%86%3C/text%3E%3C/svg%3E";
+                    }
+                    const info = document.createElement("span");
+                    info.className = "bookmark-info";
+                    const title = document.createElement("div");
+                    title.className = "bookmark-title";
+                    title.textContent = item.title || item.url;
+                    const url = document.createElement("div");
+                    url.className = "bookmark-url";
+                    url.textContent = item.url;
+                    info.append(title, url);
+                    open.append(favicon, info);
+                    open.addEventListener("click", () => window.bookmarksAPI.open(item.url));
+
+                    const row = document.createElement("div");
+                    row.className = "bookmark-actions";
+                    const move = document.createElement("select");
+                    move.setAttribute("aria-label", "Mover favorito para uma pasta");
+                    const rootOption = document.createElement("option");
+                    rootOption.value = "";
+                    rootOption.textContent = "Barra de favoritos";
+                    move.appendChild(rootOption);
+                    for (const folder of currentData.folders) {
+                        const option = document.createElement("option");
+                        option.value = folder.id;
+                        option.textContent = folder.name;
+                        option.selected = folder.id === item.folderId;
+                        move.appendChild(option);
+                    }
+                    move.addEventListener("change", async () => {
+                        try {
+                            await window.bookmarksAPI.moveBookmark(item.id, move.value || null);
+                            await refresh();
+                        } catch (error) { showNotice(error.message, true); }
+                    });
+                    const remove = document.createElement("button");
+                    remove.className = "small-action";
+                    remove.type = "button";
+                    remove.textContent = "Remover";
+                    remove.addEventListener("click", async () => {
+                        try {
+                            await window.bookmarksAPI.removeBookmark(item.id);
+                            await refresh();
+                        } catch (error) { showNotice(error.message, true); }
+                    });
+                    row.append(move, remove);
+                    card.append(open, row);
+                    grid.appendChild(card);
+                }
+                bookmarksElement.appendChild(grid);
+            }
+
+            document.getElementById("empty").hidden = folders.length > 0 || items.length > 0;
+        }
+
+        document.getElementById("create-folder").addEventListener("click", async () => {
+            const name = prompt("Nome da nova pasta:");
+            if (!name) return;
+            try {
+                await window.bookmarksAPI.createFolder(name, selectedFolderId);
+                showNotice("Pasta criada.");
+                await refresh();
+            } catch (error) { showNotice(error.message, true); }
+        });
+
+        document.getElementById("import-html").addEventListener("click", async () => {
+            try {
+                const count = await window.bookmarksAPI.importHtml();
+                if (count !== null) {
+                    showNotice(`${count} favorito(s) importado(s).`);
+                    await refresh();
+                }
+            } catch (error) { showNotice(error.message, true); }
+        });
+
+        document.getElementById("export-html").addEventListener("click", async () => {
+            try {
+                const saved = await window.bookmarksAPI.exportHtml();
+                if (saved) showNotice("Favoritos exportados em HTML.");
+            } catch (error) { showNotice(error.message, true); }
+        });
+
+        window.bookmarksAPI.onUpdated(refresh);
+        refresh();
+    </script>
+</body>
+</html>

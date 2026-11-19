@@ -1,6 +1,12 @@
 const urlInput =
     document.getElementById("url");
 
+const bookmarkButton =
+    document.getElementById("bookmark-current");
+
+const bookmarksBar =
+    document.getElementById("bookmarks-bar");
+
 const backButton =
     document.getElementById("back");
 
@@ -91,6 +97,112 @@ function navigate() {
 
     window.browserAPI.navigate(url);
 }
+
+let currentPageUrl = "";
+let currentPageTitle = "";
+let currentPageFavicon = null;
+
+function updateBookmarkButton(url) {
+    currentPageUrl = url || "";
+    const canBookmark = /^https?:\/\//i.test(currentPageUrl);
+    bookmarkButton.disabled = !canBookmark;
+    bookmarkButton.classList.remove("saved");
+    bookmarkButton.textContent = "☆";
+    bookmarkButton.setAttribute("aria-pressed", "false");
+    bookmarkButton.title = canBookmark
+        ? "Adicionar aos favoritos"
+        : "Favoritos disponíveis para páginas HTTP ou HTTPS";
+
+    if (canBookmark) {
+        const checkedUrl = currentPageUrl;
+        window.browserAPI.isBookmarked(checkedUrl)
+            .then(saved => {
+                if (currentPageUrl !== checkedUrl) return;
+                bookmarkButton.classList.toggle("saved", saved);
+                bookmarkButton.textContent = saved ? "★" : "☆";
+                bookmarkButton.setAttribute("aria-pressed", String(saved));
+                bookmarkButton.title = saved ? "Remover dos favoritos" : "Adicionar aos favoritos";
+            })
+            .catch(error => {
+                console.error("Não foi possível verificar o favorito:", error);
+            });
+    }
+}
+
+bookmarkButton.addEventListener("click", async () => {
+    if (!currentPageUrl) return;
+    bookmarkButton.disabled = true;
+    try {
+        const saved = await window.browserAPI.toggleBookmark(currentPageUrl, currentPageTitle, currentPageFavicon);
+        bookmarkButton.classList.toggle("saved", saved);
+        bookmarkButton.textContent = saved ? "★" : "☆";
+        bookmarkButton.setAttribute("aria-pressed", String(saved));
+        bookmarkButton.title = saved ? "Remover dos favoritos" : "Adicionar aos favoritos";
+    } catch (error) {
+        bookmarkButton.title = error.message || "Não foi possível alterar o favorito.";
+        console.error("Não foi possível alterar o favorito:", error);
+    } finally {
+        bookmarkButton.disabled = !/^https?:\/\//i.test(currentPageUrl);
+    }
+});
+
+function renderBookmarksBar(data) {
+    bookmarksBar.replaceChildren();
+    const folders = (data.folders || []).filter(folder => !folder.parentId);
+    const items = (data.items || []).filter(item => !item.folderId);
+
+    for (const folder of folders) {
+        const button = document.createElement("button");
+        button.className = "bookmark-bar-item";
+        button.type = "button";
+        button.textContent = "📁 " + folder.name;
+        button.title = folder.name;
+        button.addEventListener("click", () => window.browserAPI.openBookmarks(folder.id));
+        bookmarksBar.appendChild(button);
+    }
+
+    for (const item of items) {
+        const button = document.createElement("button");
+        button.className = "bookmark-bar-item";
+        button.type = "button";
+        button.title = item.url;
+        if (/^https?:/i.test(item.favicon || "")) {
+            const favicon = document.createElement("img");
+            favicon.alt = "";
+            favicon.src = item.favicon;
+            favicon.onerror = () => favicon.remove();
+            button.appendChild(favicon);
+        }
+        const label = document.createElement("span");
+        label.textContent = item.title || item.url;
+        button.appendChild(label);
+        button.addEventListener("click", () => window.browserAPI.navigate(item.url));
+        bookmarksBar.appendChild(button);
+    }
+
+    const manage = document.createElement("button");
+    manage.className = "bookmark-bar-item";
+    manage.type = "button";
+    manage.textContent = "☆ Favoritos";
+    manage.title = "Gerenciar favoritos";
+    manage.addEventListener("click", () => window.browserAPI.openBookmarks());
+    bookmarksBar.appendChild(manage);
+}
+
+async function refreshBookmarksBar() {
+    try {
+        renderBookmarksBar(await window.browserAPI.getBookmarks());
+    } catch (error) {
+        console.error("Não foi possível carregar a barra de favoritos:", error);
+    }
+}
+
+window.browserAPI.onBookmarksUpdated(() => {
+    refreshBookmarksBar();
+    updateBookmarkButton(currentPageUrl);
+});
+
+refreshBookmarksBar();
 
 
 // =====================================
@@ -438,6 +550,9 @@ function updateActiveTab(tab) {
     urlInput.value =
         tab.url || "";
 
+    currentPageTitle = tab.title || tab.url || "";
+    currentPageFavicon = tab.favicon || null;
+    updateBookmarkButton(tab.url || "");
 
     updateSecurityIndicator(
         tab.url || ""

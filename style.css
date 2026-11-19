@@ -181,6 +181,74 @@ body {
     color: var(--sb-text-muted);
 }
 
+.url-bar-wrapper .bookmark-current {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #c6c9d4;
+    font-size: 21px;
+    line-height: 1;
+}
+
+.url-bar-wrapper .bookmark-current:hover,
+.url-bar-wrapper .bookmark-current.saved {
+    background: #41366c;
+    color: #ffd76a;
+}
+
+.bookmarks-bar {
+    min-height: 34px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-x: auto;
+    padding: 3px 12px;
+    background: #191919;
+    border-top: 1px solid #292929;
+}
+
+.bookmarks-bar:empty {
+    display: none;
+}
+
+.bookmark-bar-item {
+    max-width: 190px;
+    height: 27px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #e4e4e4;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.bookmark-bar-item:hover {
+    border-color: #3a3a3a;
+    background: #292929;
+}
+
+.bookmark-bar-item img {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.bookmark-bar-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .content {
     flex: 1;
 

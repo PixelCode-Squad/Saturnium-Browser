@@ -63,6 +63,13 @@ Os resultados dependem da disponibilidade e das respostas dos serviços externos
 - Exibição do histórico em página própria.
 - Limpeza do histórico.
 
+### ⭐ Favoritos
+
+- Adicionar e remover a página atual pela estrela na barra de endereço.
+- Barra de favoritos com atalhos para páginas e pastas.
+- Organização em pastas pela página `saturnium://bookmarks`.
+- Importação e exportação no formato HTML de favoritos.
+
 ### 📥 Downloads
 
 - Gerenciamento de downloads.

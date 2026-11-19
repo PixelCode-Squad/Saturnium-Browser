@@ -9,6 +9,9 @@ const NavigationManager =
 const HistoryManager =
     require("../history/HistoryManager");
 
+const BookmarksManager =
+    require("../bookmarks/BookmarksManager");
+
 const DownloadManager =
     require("../downloads/DownloadManager");
 
@@ -75,6 +78,9 @@ class BrowserManager {
 
         this.history =
             new HistoryManager();
+
+        this.bookmarks =
+            new BookmarksManager(app.getPath("userData"));
 
         // =====================================
         // MECANISMO DE BUSCA
@@ -426,6 +432,14 @@ class BrowserManager {
 
         this.tabManager.openHistory();
 
+    }
+
+    openBookmarks(folderId = null) {
+        return this.tabManager.openBookmarks(folderId);
+    }
+
+    isBookmarksWebContents(webContents) {
+        return this.tabManager.isBookmarksWebContents(webContents);
     }
 
 

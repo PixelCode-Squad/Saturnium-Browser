@@ -3,6 +3,7 @@ const {
     BrowserWindow,
     ipcMain,
     Menu,
+    dialog,
     protocol,
     net,
     session
@@ -10,6 +11,9 @@ const {
 //
 const path =
     require("path");
+
+const fs =
+    require("fs").promises;
 
 const { pathToFileURL } = require("url");
 
@@ -110,6 +114,7 @@ function createWindow() {
 
 
             browserManager.initialize();
+            notifyBookmarksChanged();
 
         }
     );
@@ -375,6 +380,16 @@ function handleKeyboardInput(
 
     }
 
+    if (
+        input.control &&
+        input.shift &&
+        input.key.toLowerCase() === "b"
+    ) {
+        event.preventDefault();
+        browserManager.openBookmarks();
+        return;
+    }
+
 }
 
 
@@ -556,6 +571,122 @@ function isTrustedAIEvent(event) {
         browserManager.isAIWebContents(event.sender)
     );
 }
+
+function isTrustedBookmarksPageEvent(event) {
+    return !!(
+        browserManager &&
+        event &&
+        browserManager.isBookmarksWebContents(event.sender)
+    );
+}
+
+function notifyBookmarksChanged() {
+    if (!browserManager) return;
+    if (win && !win.isDestroyed()) {
+        win.webContents.send("bookmarks-updated");
+    }
+    for (const tab of browserManager.tabManager.tabs) {
+        if (tab.bookmarksPreload && tab.view && !tab.view.webContents.isDestroyed()) {
+            tab.view.webContents.send("bookmarks-page-updated");
+        }
+    }
+}
+
+ipcMain.handle("bookmarks-get", (event) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    return browserManager.bookmarks.getAll();
+});
+
+ipcMain.handle("bookmarks-folder-create", (event, name, parentId) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    const folder = browserManager.bookmarks.createFolder(name, parentId || null);
+    notifyBookmarksChanged();
+    return folder;
+});
+
+ipcMain.handle("bookmarks-folder-rename", (event, id, name) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    browserManager.bookmarks.renameFolder(id, name);
+    notifyBookmarksChanged();
+    return true;
+});
+
+ipcMain.handle("bookmarks-folder-delete", (event, id) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    browserManager.bookmarks.deleteFolder(id);
+    notifyBookmarksChanged();
+    return true;
+});
+
+ipcMain.handle("bookmarks-move", (event, id, folderId) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    browserManager.bookmarks.moveBookmark(id, folderId || null);
+    notifyBookmarksChanged();
+    return true;
+});
+
+ipcMain.handle("bookmarks-remove", (event, id) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    browserManager.bookmarks.removeBookmark(id);
+    notifyBookmarksChanged();
+    return true;
+});
+
+ipcMain.handle("bookmarks-open", (event, url) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+        throw new Error("Endereço de favorito inválido.");
+    }
+    browserManager.navigate(url);
+    return true;
+});
+
+ipcMain.handle("bookmarks-import", async (event) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    const result = await dialog.showOpenDialog(win, {
+        title: "Importar favoritos",
+        properties: ["openFile"],
+        filters: [{ name: "Favoritos HTML", extensions: ["html", "htm"] }]
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    const file = result.filePaths[0];
+    const stats = await fs.stat(file);
+    if (stats.size > 10 * 1024 * 1024) {
+        throw new Error("O arquivo de favoritos excede 10 MB.");
+    }
+    const count = browserManager.bookmarks.importHtml(await fs.readFile(file, "utf8"));
+    notifyBookmarksChanged();
+    return count;
+});
+
+ipcMain.handle("bookmarks-export", async (event) => {
+    if (!isTrustedBookmarksPageEvent(event)) throw new Error("UNAUTHORIZED");
+    const result = await dialog.showSaveDialog(win, {
+        title: "Exportar favoritos",
+        defaultPath: path.join(app.getPath("documents"), "favoritos.html"),
+        filters: [{ name: "Favoritos HTML", extensions: ["html"] }]
+    });
+    if (result.canceled || !result.filePath) return false;
+    await fs.writeFile(result.filePath, browserManager.bookmarks.exportHtml(), "utf8");
+    return true;
+});
+
+ipcMain.handle("bookmarks-shell-get", (event) => {
+    if (!win || event.sender !== win.webContents || !browserManager) throw new Error("UNAUTHORIZED");
+    return browserManager.bookmarks.getAll();
+});
+
+ipcMain.handle("bookmarks-shell-is-saved", (event, url) => {
+    if (!win || event.sender !== win.webContents || !browserManager) throw new Error("UNAUTHORIZED");
+    return browserManager.bookmarks.isBookmarked(url);
+});
+
+ipcMain.handle("bookmarks-shell-toggle", (event, url, title, favicon) => {
+    if (!win || event.sender !== win.webContents || !browserManager) throw new Error("UNAUTHORIZED");
+    const bookmarked = browserManager.bookmarks.toggle(url, title, favicon);
+    notifyBookmarksChanged();
+    return bookmarked;
+});
 
 ipcMain.handle("saturnium-ai-config-get", (event) => {
     if (!isTrustedAIEvent(event)) throw new Error("UNAUTHORIZED");
@@ -775,6 +906,12 @@ ipcMain.on(
     }
 );
 
+ipcMain.on("bookmarks-open-page", (event, folderId) => {
+    if (win && event.sender === win.webContents && browserManager) {
+        browserManager.openBookmarks(typeof folderId === "string" ? folderId : null);
+    }
+});
+
 
 // ==========================================
 // FIXAR / DESAFIXAR ABA
@@ -943,6 +1080,18 @@ ipcMain.on(
                 click: () => {
 
                     browserManager.openHistory();
+
+                }
+            },
+
+            {
+                label: "Favoritos",
+
+                accelerator: "Ctrl+Shift+B",
+
+                click: () => {
+
+                    browserManager.openBookmarks();
 
                 }
             },
@@ -1284,6 +1433,10 @@ app.whenReady().then(async () => {
 
             case "history":
                 file = "history.html";
+                break;
+
+            case "bookmarks":
+                file = "bookmarks.html";
                 break;
 
             case "downloads":

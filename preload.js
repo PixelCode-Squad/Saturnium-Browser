@@ -125,6 +125,24 @@ contextBridge.exposeInMainWorld(
                 "history-open"
             ),
 
+        openBookmarks: (folderId) =>
+            ipcRenderer.send(
+                "bookmarks-open-page",
+                folderId
+            ),
+
+        getBookmarks: () =>
+            ipcRenderer.invoke("bookmarks-shell-get"),
+
+        isBookmarked: (url) =>
+            ipcRenderer.invoke("bookmarks-shell-is-saved", url),
+
+        toggleBookmark: (url, title, favicon) =>
+            ipcRenderer.invoke("bookmarks-shell-toggle", url, title, favicon),
+
+        onBookmarksUpdated: (callback) =>
+            ipcRenderer.on("bookmarks-updated", callback),
+
 
         // ==========================================
         // FIXAR ABA / REABRIR ABA FECHADA

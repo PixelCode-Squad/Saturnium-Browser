@@ -27,6 +27,13 @@ const HISTORY_PAGE = path.join(
     "history.html"
 );
 
+const BOOKMARKS_PRELOAD = path.join(
+    __dirname,
+    "..",
+    "bookmarks",
+    "bookmarks-preload.js"
+);
+
 const DOWNLOADS_PAGE = path.join(
     __dirname,
     "..",
@@ -197,6 +204,8 @@ class TabManager {
 
         const perfPreload = options.performance === true;
 
+        const bookmarksPreload = options.bookmarks === true;
+
         const view = new WebContentsView({
 
             webPreferences: {
@@ -211,7 +220,8 @@ class TabManager {
 
                 ...(extPreload ? { preload: EXT_PRELOAD } : {}),
 
-                ...(perfPreload ? { preload: PERF_PRELOAD } : {})
+                ...(perfPreload ? { preload: PERF_PRELOAD } : {}),
+                ...(bookmarksPreload ? { preload: BOOKMARKS_PRELOAD } : {})
 
             }
 
@@ -241,6 +251,8 @@ class TabManager {
             extPreload,
 
             perfPreload,
+
+            bookmarksPreload,
 
             // Para o sistema de desempenho (suspensão de abas)
             lastActiveAt: Date.now(),
@@ -1188,6 +1200,16 @@ class TabManager {
             return;
         }
 
+        if (
+            input.control &&
+            input.shift &&
+            input.key.toLowerCase() === "b"
+        ) {
+            event.preventDefault();
+            this.openBookmarks();
+            return;
+        }
+
 
         // =================================
         // SE FECHAMOS A ABA ATIVA
@@ -1460,6 +1482,19 @@ class TabManager {
             return;
         }
 
+        if (page === "bookmarks") {
+            tab.internal = true;
+            const target = options.folderId
+                ? "saturnium://bookmarks?folder=" + encodeURIComponent(options.folderId)
+                : "saturnium://bookmarks";
+            tab.url = target;
+            tab.title = "Favoritos - SaturniumBrowser";
+            tab.view.webContents.loadURL(target);
+            this.sendTabUpdate(tab);
+            this.sendTabs();
+            return;
+        }
+
         if (page === "downloads") {
 
             tab.internal = true;
@@ -1630,6 +1665,15 @@ class TabManager {
             return;
         }
 
+        if (page === "bookmarks") {
+            if (!tab.bookmarksPreload) {
+                this.openBookmarks();
+                return;
+            }
+            this.openInternalPage("bookmarks");
+            return;
+        }
+
 
         if (page === "ai") {
 
@@ -1727,6 +1771,22 @@ class TabManager {
             "history"
         );
 
+    }
+
+    openBookmarks(folderId = null) {
+        const tab = this.createTab(null, { bookmarks: true });
+        this.openInternalPage("bookmarks", { folderId });
+        return tab;
+    }
+
+    isBookmarksWebContents(webContents) {
+        return this.tabs.some(
+            tab =>
+                tab.bookmarksPreload &&
+                tab.view &&
+                tab.view.webContents === webContents &&
+                /^saturnium:\/\/bookmarks(?:[/?#]|$)/i.test(webContents.getURL())
+        );
     }
 
 
@@ -2415,7 +2475,10 @@ class TabManager {
                     tab.title,
 
                 url:
-                    tab.url
+                    tab.url,
+
+                favicon:
+                    tab.favicon
 
             }
         );
