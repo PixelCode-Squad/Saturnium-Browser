@@ -911,6 +911,17 @@ ipcMain.on(
     }
 );
 
+ipcMain.on(
+    "tab-move",
+    (event, id, targetId, before) => {
+        if (!browserManager) {
+            return;
+        }
+
+        browserManager.moveTab(id, targetId, before);
+    }
+);
+
 
 // ==========================================
 // ABRIR HISTÓRICO (via menu)

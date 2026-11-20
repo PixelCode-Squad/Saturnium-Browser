@@ -101,6 +101,22 @@ class BookmarksManager {
         return !!safeUrl && this.items.some(item => item.url === safeUrl);
     }
 
+    updateFavicon(url, favicon) {
+        const safeUrl = safeBookmarkUrl(url);
+        if (!safeUrl || typeof favicon !== "string" || !favicon || favicon.length > 8192) {
+            return false;
+        }
+
+        const bookmark = this.items.find(item => item.url === safeUrl);
+        if (!bookmark || bookmark.favicon === favicon) {
+            return false;
+        }
+
+        bookmark.favicon = favicon;
+        this.save();
+        return true;
+    }
+
     toggle(url, title, favicon = null) {
         const safeUrl = safeBookmarkUrl(url);
         if (!safeUrl) {

@@ -61,6 +61,13 @@ body {
     padding: 0 10px;
 
     background: var(--sb-chrome-bg);
+
+    -webkit-app-region: drag;
+}
+
+.window-buttons,
+.window-buttons button {
+    -webkit-app-region: no-drag;
 }
 
 .brand {
@@ -613,6 +620,18 @@ body {
         background 0.15s,
         color 0.15s;
 
+}
+
+.tab.dragging {
+    opacity: 0.45;
+}
+
+.tab.drop-before {
+    box-shadow: inset 3px 0 0 var(--sb-accent);
+}
+
+.tab.drop-after {
+    box-shadow: inset -3px 0 0 var(--sb-accent);
 }
 
 

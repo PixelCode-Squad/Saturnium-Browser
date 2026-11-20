@@ -1154,6 +1154,32 @@ class TabManager {
 
     }
 
+    moveTab(id, targetId, before) {
+
+        const sourceIndex = this.tabs.findIndex(tab => tab.id === id);
+        const target = this.tabs.find(tab => tab.id === targetId);
+
+        if (
+            sourceIndex === -1 ||
+            !target ||
+            id === targetId
+        ) {
+            return false;
+        }
+
+        const source = this.tabs[sourceIndex];
+        if (!!source.pinned !== !!target.pinned) {
+            return false;
+        }
+
+        this.tabs.splice(sourceIndex, 1);
+        const targetIndex = this.tabs.findIndex(tab => tab.id === targetId);
+        this.tabs.splice(targetIndex + (before ? 0 : 1), 0, source);
+        this.sendTabs();
+        return true;
+
+    }
+
 
     // =====================================
     // FECHAR ABA

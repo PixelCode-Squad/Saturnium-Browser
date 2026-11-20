@@ -117,6 +117,14 @@ contextBridge.exposeInMainWorld(
                 id
             ),
 
+        moveTab: (id, targetId, before) =>
+            ipcRenderer.send(
+                "tab-move",
+                id,
+                targetId,
+                !!before
+            ),
+
 
         // ==========================================
         // MENU PRINCIPAL (TRÊS PONTINHOS)

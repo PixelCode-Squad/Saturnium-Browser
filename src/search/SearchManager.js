@@ -1,14 +1,8 @@
 // =====================================================
 // SearchManager - SaturniumBrowser 1.1.3
 //
-// Provedor principal: Bing Search RSS.
-//
-// O mecanismo antigo dependia do HTML público do
-// DuckDuckGo (html.duckduckgo.com). Esse endpoint pode
-// responder com desafios anti-bot em vez dos resultados.
-//
-// Aqui consumimos um feed RSS de busca, sem depender do
-// HTML da página de resultados do DuckDuckGo.
+// Tenta provedores em sequência e ignora respostas sem resultados
+// reconhecíveis, incluindo páginas de desafio anti-bot.
 //
 // Retorno padronizado:
 //   { title, url, snippet }
@@ -49,7 +43,8 @@ class SearchManager {
         const providers = [
             ["Bing RSS",  () => this.searchBingRss(trimmed)],
             ["Mojeek",    () => this.searchMojeek(trimmed)],
-            ["Bing HTML", () => this.searchBingHtml(trimmed)]
+            ["Bing HTML", () => this.searchBingHtml(trimmed)],
+            ["DuckDuckGo HTML", () => this.searchDuckDuckGo(trimmed)]
         ];
 
         let networkError = null;
@@ -164,6 +159,91 @@ class SearchManager {
             );
 
         return this.parseMojeek(html);
+
+    }
+
+    async searchDuckDuckGo(query) {
+
+        const params =
+            new URLSearchParams({
+                q: query
+            });
+
+        const html =
+            await this.fetchText(
+                `https://html.duckduckgo.com/html/?${params.toString()}`,
+                "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"
+            );
+
+        return this.parseDuckDuckGo(html);
+
+    }
+
+    parseDuckDuckGo(html) {
+
+        const results = [];
+
+        if (!html || typeof html !== "string") return results;
+
+        const linkRegex =
+            /<a\b(?=[^>]*\bclass=["'][^"']*\bresult__a\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+        const links = [];
+        let match;
+
+        while ((match = linkRegex.exec(html)) !== null) {
+            links.push({
+                url: this.unwrapDuckDuckGoUrl(this.decodeEntities(match[1])),
+                title: this.stripTagsAndDecode(match[2]),
+                end: linkRegex.lastIndex,
+                index: match.index
+            });
+        }
+
+        const seen = new Set();
+        for (let i = 0; i < links.length; i++) {
+            const link = links[i];
+            if (!this.isHttp(link.url) || seen.has(link.url)) continue;
+            seen.add(link.url);
+
+            const nextIndex = links[i + 1] ? links[i + 1].index : html.length;
+            const segment = html.slice(link.end, nextIndex);
+            const snippetMatch =
+                /<a\b(?=[^>]*\bclass=["'][^"']*\bresult__snippet\b[^"']*["'])[^>]*>([\s\S]*?)<\/a>/i.exec(segment);
+
+            results.push({
+                title: link.title || link.url,
+                url: link.url,
+                snippet: snippetMatch
+                    ? this.stripTagsAndDecode(snippetMatch[1])
+                    : ""
+            });
+
+            if (results.length >= 20) break;
+        }
+
+        return results;
+
+    }
+
+    unwrapDuckDuckGoUrl(url) {
+
+        try {
+            const parsed = new URL(url, "https://html.duckduckgo.com");
+            if (
+                /(^|\.)duckduckgo\.com$/i.test(parsed.hostname) &&
+                parsed.pathname === "/l/"
+            ) {
+                const destination = parsed.searchParams.get("uddg");
+                if (destination && this.isHttp(destination)) {
+                    return destination;
+                }
+            }
+
+            return parsed.href;
+        } catch {
+            return url;
+        }
 
     }
 

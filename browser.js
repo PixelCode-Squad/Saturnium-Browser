@@ -184,13 +184,23 @@ function renderBookmarksBar(data) {
         button.className = "bookmark-bar-item";
         button.type = "button";
         button.title = item.url;
-        if (/^https?:/i.test(item.favicon || "")) {
-            const favicon = document.createElement("img");
-            favicon.alt = "";
-            favicon.src = item.favicon;
-            favicon.onerror = () => favicon.remove();
-            button.appendChild(favicon);
-        }
+        const fallbackFavicon = new URL("/favicon.ico", item.url).href;
+        const savedFavicon = /^(https?:\/\/|data:image\/)/i.test(item.favicon || "")
+            ? item.favicon
+            : fallbackFavicon;
+        const favicon = document.createElement("img");
+        let usingFallbackFavicon = savedFavicon === fallbackFavicon;
+        favicon.alt = "";
+        favicon.src = savedFavicon;
+        favicon.onerror = () => {
+            if (usingFallbackFavicon) {
+                favicon.remove();
+                return;
+            }
+            usingFallbackFavicon = true;
+            favicon.src = fallbackFavicon;
+        };
+        button.appendChild(favicon);
         const label = document.createElement("span");
         label.textContent = item.title || item.url;
         button.appendChild(label);
@@ -394,6 +404,7 @@ function updateFindForActivePage(tabId, url) {
     runFind(false, true);
 }
 
+let draggedTabId = null;
 
 function renderTabs(data) {
 
@@ -415,6 +426,7 @@ function renderTabs(data) {
         tabElement.dataset.id =
             tab.id;
 
+        tabElement.draggable = true;
 
         if (
             tab.id ===
@@ -526,6 +538,53 @@ function renderTabs(data) {
 
             }
         );
+
+        tabElement.addEventListener("dragstart", (event) => {
+            draggedTabId = tab.id;
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", String(tab.id));
+            tabElement.classList.add("dragging");
+        });
+
+        tabElement.addEventListener("dragend", () => {
+            draggedTabId = null;
+            tabElement.classList.remove("dragging");
+            tabsContainer.querySelectorAll(".drop-before, .drop-after").forEach(element => {
+                element.classList.remove("drop-before", "drop-after");
+            });
+        });
+
+        tabElement.addEventListener("dragover", (event) => {
+            const draggedTab = tabs.find(candidate => candidate.id === draggedTabId);
+            if (
+                draggedTabId === null ||
+                draggedTabId === tab.id ||
+                !draggedTab ||
+                !!draggedTab.pinned !== !!tab.pinned
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            const before = event.clientX < tabElement.getBoundingClientRect().left + tabElement.offsetWidth / 2;
+            tabElement.classList.toggle("drop-before", before);
+            tabElement.classList.toggle("drop-after", !before);
+        });
+
+        tabElement.addEventListener("dragleave", () => {
+            tabElement.classList.remove("drop-before", "drop-after");
+        });
+
+        tabElement.addEventListener("drop", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const sourceId = draggedTabId;
+            if (sourceId === null || sourceId === tab.id) return;
+
+            const before = event.clientX < tabElement.getBoundingClientRect().left + tabElement.offsetWidth / 2;
+            window.browserAPI.moveTab(sourceId, tab.id, before);
+        });
 
 
         // =================================

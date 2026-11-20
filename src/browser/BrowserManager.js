@@ -127,6 +127,9 @@ class BrowserManager {
 
                     onFaviconUpdate: (url, favicon) => {
                         this.history.updateFavicon(url, favicon);
+                        if (this.bookmarks.updateFavicon(url, favicon)) {
+                            this.window.webContents.send("bookmarks-updated");
+                        }
                     },
 
                     getHistory: () =>
@@ -277,6 +280,12 @@ class BrowserManager {
     activateTab(id) {
 
         this.tabManager.activateTab(id);
+
+    }
+
+    moveTab(id, targetId, before) {
+
+        this.tabManager.moveTab(id, targetId, before);
 
     }
 
